@@ -1,0 +1,46 @@
+{
+ "actions": [],
+ "autoname": "field:email",
+ "creation": "2026-09-22 00:00:00.000000",
+ "description": "The last signature each email address signed with, offered again on their next document.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "email",
+  "signature"
+ ],
+ "fields": [
+  {
+   "fieldname": "email",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Email",
+   "options": "Email",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "signature",
+   "fieldtype": "Attach Image",
+   "in_list_view": 1,
+   "label": "Signature"
+  }
+ ],
+ "image_field": "signature",
+ "links": [],
+ "modified": "2026-09-22 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Frappe Sign",
+ "name": "Saved Signature",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "delete": 1,
+   "read": 1,
+   "role": "System Manager"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

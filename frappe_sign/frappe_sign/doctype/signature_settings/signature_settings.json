@@ -1,0 +1,47 @@
+{
+ "actions": [],
+ "creation": "2026-09-16 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "token_validity_days",
+  "reminder_interval_days"
+ ],
+ "fields": [
+  {
+   "default": "14",
+   "fieldname": "token_validity_days",
+   "fieldtype": "Int",
+   "label": "Token Validity (Days)",
+   "description": "How long an unused sign link stays valid."
+  },
+  {
+   "default": "3",
+   "fieldname": "reminder_interval_days",
+   "fieldtype": "Int",
+   "label": "Remind Every (Days)",
+   "description": "Re-email signers who haven't signed yet, every this many days, until the link expires. 0 turns reminders off."
+  }
+ ],
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-09-22 15:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Frappe Sign",
+ "name": "Signature Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

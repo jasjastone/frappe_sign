@@ -1,0 +1,10 @@
+[pre_model_sync]
+# Patches added in this section will be executed before doctypes are migrated
+# Read docs to understand patches: https://frappeframework.com/docs/v14/user/en/database-migrations
+
+[post_model_sync]
+# Patches added in this section will be executed after doctypes are migrated
+frappe_sign.patches.move_default_signature_to_saved_signature
+frappe_sign.patches.move_placement_to_sign_boxes
+frappe_sign.patches.add_signature_status_field
+frappe_sign.patches.set_reminder_interval

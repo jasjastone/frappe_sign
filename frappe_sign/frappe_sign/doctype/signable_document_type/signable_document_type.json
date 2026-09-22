@@ -1,0 +1,84 @@
+{
+ "actions": [],
+ "autoname": "field:document_type",
+ "creation": "2026-09-16 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "document_type",
+  "enabled",
+  "default_print_format",
+  "allow_external_signers",
+  "require_signature_to_submit",
+  "submit_when_signed"
+ ],
+ "fields": [
+  {
+   "fieldname": "document_type",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Document Type",
+   "options": "DocType",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Enabled"
+  },
+  {
+   "fieldname": "default_print_format",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Default Print Format",
+   "options": "Print Format",
+   "description": "Used to render the PDF snapshot for this document type."
+  },
+  {
+   "default": "0",
+   "fieldname": "allow_external_signers",
+   "fieldtype": "Check",
+   "label": "Allow External Signers",
+   "description": "If unchecked, only User can be added as a signer for this document type's requests."
+  },
+  {
+   "default": "1",
+   "fieldname": "require_signature_to_submit",
+   "fieldtype": "Check",
+   "label": "Require Signature to Submit",
+   "description": "Block submitting a document until its latest signature request is signed by everyone."
+  },
+  {
+   "default": "1",
+   "fieldname": "submit_when_signed",
+   "fieldtype": "Check",
+   "label": "Submit When Signed",
+   "description": "Submit the document automatically once everyone has signed its latest request. If submitting fails, it stays in draft with a comment saying why."
+  }
+ ],
+ "links": [],
+ "modified": "2026-09-22 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Frappe Sign",
+ "name": "Signable Document Type",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

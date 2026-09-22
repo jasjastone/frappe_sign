@@ -1,0 +1,147 @@
+{
+ "actions": [],
+ "creation": "2026-09-16 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "signer_type",
+  "signer_reference",
+  "signer_name",
+  "signer_email",
+  "column_break_status",
+  "status",
+  "rejection_reason",
+  "section_break_token",
+  "access_token",
+  "token_expiry",
+  "last_notified_on",
+  "section_break_placement",
+  "sign_boxes",
+  "section_break_audit",
+  "signed_on",
+  "signed_ip"
+ ],
+ "fields": [
+  {
+   "fieldname": "signer_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Signer Type",
+   "options": "User\nEmployee\nCustomer\nSupplier\nEmail",
+   "reqd": 1
+  },
+  {
+   "fieldname": "signer_reference",
+   "fieldtype": "Dynamic Link",
+   "in_list_view": 1,
+   "label": "Signer Reference",
+   "options": "signer_type"
+  },
+  {
+   "fieldname": "signer_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Signer Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "signer_email",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Signer Email",
+   "options": "Email",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_status",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Pending",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Pending\nSigned\nRejected"
+  },
+  {
+   "depends_on": "eval:doc.status == \"Rejected\"",
+   "fieldname": "rejection_reason",
+   "fieldtype": "Small Text",
+   "label": "Rejection Reason"
+  },
+  {
+   "fieldname": "section_break_token",
+   "fieldtype": "Section Break",
+   "label": "Access"
+  },
+  {
+   "fieldname": "access_token",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Access Token",
+   "no_copy": 1,
+   "read_only": 1,
+   "unique": 1,
+   "permlevel": 1
+  },
+  {
+   "fieldname": "token_expiry",
+   "fieldtype": "Datetime",
+   "label": "Token Expiry",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_notified_on",
+   "fieldtype": "Datetime",
+   "label": "Last Emailed On",
+   "no_copy": 1,
+   "read_only": 1,
+   "description": "When the signing link or the last reminder was emailed."
+  },
+  {
+   "fieldname": "section_break_placement",
+   "fieldtype": "Section Break",
+   "label": "Signature Placement"
+  },
+  {
+   "fieldname": "sign_boxes",
+   "fieldtype": "JSON",
+   "label": "Signature Boxes",
+   "read_only": 1,
+   "description": "Every place this signer signs: [{page, x, y, w, h}] in PDF points, page 0-based, top-left origin."
+  },
+  {
+   "fieldname": "section_break_audit",
+   "fieldtype": "Section Break",
+   "label": "Audit"
+  },
+  {
+   "fieldname": "signed_on",
+   "fieldtype": "Datetime",
+   "label": "Signed On",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "signed_ip",
+   "fieldtype": "Data",
+   "label": "Signed IP",
+   "no_copy": 1,
+   "read_only": 1
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-22 15:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Frappe Sign",
+ "name": "Signature Request Signer",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

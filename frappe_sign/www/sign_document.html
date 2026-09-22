@@ -1,0 +1,39 @@
+{% extends "templates/web.html" %}
+
+{% block title %}{{ _("Sign") }}{% endblock %}
+
+{% block page_content %}
+<div class="container my-5" style="max-width: 760px;">
+	<div id="sign-root">
+		{% if not key %}
+		<div class="text-danger">{{ _("This signing link is not valid.") }}</div>
+		{% else %}
+		<div class="text-muted">{{ _("Loading document...") }}</div>
+		{% endif %}
+	</div>
+</div>
+
+{{ include_style("sign.bundle.css") }}
+{{ include_script("sign_page.bundle.js") }}
+<script>
+	frappe.ready(function () {
+		var key = {{ key | tojson }};
+		if (!key) return;
+
+		var root = document.getElementById("sign-root");
+		frappe_sign.mount_sign_widget(root, key, {
+			on_done: function (status) {
+				// D11 — swap this page's own content, never navigate.
+				root.innerHTML =
+					'<div class="text-center py-5">' +
+					'<h4>' + (status === "Signed" ? __("Signed") : __("Rejected")) + '</h4>' +
+					'<p class="text-muted">' +
+					(status === "Signed"
+						? __("Thank you. Your signature has been recorded.")
+						: __("You have declined to sign this document. The sender has been notified.")) +
+					'</p></div>';
+			},
+		});
+	});
+</script>
+{% endblock %}
