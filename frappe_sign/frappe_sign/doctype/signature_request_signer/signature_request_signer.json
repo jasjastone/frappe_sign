@@ -15,7 +15,8 @@
   "section_break_token",
   "access_token",
   "token_expiry",
-  "last_notified_on",
+  "invited_on",
+  "reminders_sent",
   "section_break_placement",
   "sign_boxes",
   "section_break_audit",
@@ -94,12 +95,20 @@
    "read_only": 1
   },
   {
-   "fieldname": "last_notified_on",
+   "fieldname": "invited_on",
    "fieldtype": "Datetime",
-   "label": "Last Emailed On",
+   "label": "Invited On",
    "no_copy": 1,
    "read_only": 1,
-   "description": "When the signing link or the last reminder was emailed."
+   "description": "When the signing link was emailed: on sending, or when their turn came."
+  },
+  {
+   "default": "0",
+   "fieldname": "reminders_sent",
+   "fieldtype": "Int",
+   "label": "Reminders Sent",
+   "no_copy": 1,
+   "read_only": 1
   },
   {
    "fieldname": "section_break_placement",

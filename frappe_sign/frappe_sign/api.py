@@ -113,10 +113,10 @@ def _notify_turn(request):
 	"""
 	validity = cint(frappe.db.get_single_value("Signature Settings", "token_validity_days")) or 14
 	for signer in request.signers:
-		if signer.last_notified_on or not _is_turn(request, signer):
+		if signer.invited_on or not _is_turn(request, signer):
 			continue
 		signer.db_set(
-			{"last_notified_on": now_datetime(), "token_expiry": add_days(now_datetime(), validity)},
+			{"invited_on": now_datetime(), "token_expiry": add_days(now_datetime(), validity)},
 			update_modified=False,
 		)
 		_email_request_created(request, signer)
@@ -143,29 +143,42 @@ def send_reminder(request):
 	return [s.signer_name for s in waiting]
 
 
-def send_reminders():
-	"""Daily: remind signers who haven't acted for the interval set in Signature Settings."""
-	days = cint(frappe.db.get_single_value("Signature Settings", "reminder_interval_days"))
-	if days <= 0:
+# When reminders go out, in hours after a signer is invited (the document was
+# sent, or their turn came). Nothing after the last one.
+REMINDER_HOURS = (2, 8, 24, 48, 96)
+
+
+def send_reminders(requests=None):
+	"""Every 15 minutes: remind signers due on REMINDER_HOURS. `requests` limits
+	it to those requests (the self-check uses it to leave real ones alone)."""
+	if frappe.db.get_single_value("Signature Settings", "disable_reminders"):
 		return
 	now = now_datetime()
-	due = frappe.db.sql(
-		f"""select s.name, s.parent from `tabSignature Request Signer` s
+	rows = frappe.db.sql(
+		f"""select s.name, s.parent, s.invited_on, s.reminders_sent
+		from `tabSignature Request Signer` s
 		join `tabSignature Request` r on r.name = s.parent
 		where {IN_TURN_SQL}
+			and s.invited_on is not null and s.reminders_sent < %(total)s
 			and (s.token_expiry is null or s.token_expiry > %(now)s)
-			and coalesce(s.last_notified_on, r.creation) <= %(cutoff)s""",
-		{"now": now, "cutoff": add_days(now, -days)},
+			{"and r.name in %(requests)s" if requests else ""}""",
+		{"now": now, "total": len(REMINDER_HOURS), "requests": tuple(requests or ())},
 		as_dict=True,
 	)
-	for row in due:
+	for row in rows:
+		hours = (now - row.invited_on).total_seconds() / 3600
+		due = sum(1 for h in REMINDER_HOURS if h <= hours)
+		if due <= row.reminders_sent:
+			continue
 		req = frappe.get_doc("Signature Request", row.parent)
-		_remind(req, next(s for s in req.signers if s.name == row.name))
+		signer = next(s for s in req.signers if s.name == row.name)
+		# One email even if several fell due while the scheduler was down.
+		signer.db_set("reminders_sent", due, update_modified=False)
+		_remind(req, signer)
 		frappe.db.commit()
 
 
 def _remind(request, signer):
-	signer.db_set("last_notified_on", now_datetime(), update_modified=False)
 	expiry = (
 		_(" The link expires on {0}.").format(frappe.utils.format_datetime(signer.token_expiry))
 		if signer.token_expiry

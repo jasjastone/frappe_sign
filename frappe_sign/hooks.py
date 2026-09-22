@@ -29,7 +29,7 @@ boot_session = "frappe_sign.frappe_sign.api.boot_session"
 # ---------------
 # Signable records are locked while out for signature, and can't be submitted
 # until signed (per Signable Document Type).
-scheduler_events = {"daily": ["frappe_sign.frappe_sign.api.send_reminders"]}
+scheduler_events = {"cron": {"*/15 * * * *": ["frappe_sign.frappe_sign.api.send_reminders"]}}
 
 doc_events = {
 	"*": {

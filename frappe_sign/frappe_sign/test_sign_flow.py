@@ -108,7 +108,7 @@ def run():
 		test_dashboard_waits_for_turn()
 		test_update_switches_order()
 		test_send_reminder()
-		test_daily_reminders()
+		test_reminder_schedule()
 		print("\nAll checks passed.")
 	finally:
 		teardown()
@@ -957,9 +957,9 @@ def test_sign_in_order():
 	req = _create(_three("Order"), sign_in_order=1)
 	_log(req.sign_in_order == 1, "request is in order")
 	rows = frappe.get_doc("Signature Request", req.name).signers
-	_log(bool(rows[0].last_notified_on and rows[0].token_expiry), "first signer invited, link clock started")
+	_log(bool(rows[0].invited_on and rows[0].token_expiry), "first signer invited, link clock started")
 	_log(
-		not any(r.last_notified_on or r.token_expiry for r in rows[1:]),
+		not any(r.invited_on or r.token_expiry for r in rows[1:]),
 		"the others are not invited yet, and their links have no expiry",
 	)
 	_not_your_turn(_token(req, 1), "second signer is told it's not their turn")
@@ -969,8 +969,8 @@ def test_sign_in_order():
 	api.submit_signature(_token(req, 0), PNG)
 	frappe.set_user("Administrator")
 
-	_log(bool(_row(req, 1).last_notified_on and _row(req, 1).token_expiry), "first signed: second is invited")
-	_log(not _row(req, 2).last_notified_on, "third still waits")
+	_log(bool(_row(req, 1).invited_on and _row(req, 1).token_expiry), "first signed: second is invited")
+	_log(not _row(req, 2).invited_on, "third still waits")
 	_not_your_turn(_token(req, 2), "third is still refused")
 	frappe.set_user("Guest")
 	api.get_signing_context(_token(req, 1))
@@ -986,7 +986,7 @@ def test_parallel_notifies_everyone():
 	req = _create(_three("Parallel"))
 	rows = frappe.get_doc("Signature Request", req.name).signers
 	_log(req.sign_in_order == 0, "sign_in_order defaults to off")
-	_log(all(r.last_notified_on and r.token_expiry for r in rows), "all three invited on create")
+	_log(all(r.invited_on and r.token_expiry for r in rows), "all three invited on create")
 	frappe.set_user("Guest")
 	api.get_signing_context(_token(req, 2))
 	frappe.set_user("Administrator")
@@ -1038,14 +1038,14 @@ def test_update_switches_order():
 	req.reload()
 	_log(req.sign_in_order == 1, "left out: sign_in_order kept")
 	_log([s.signer_name for s in req.signers] == ["Switch 2", "Switch 0", "Switch 1"], "new order saved")
-	_log(bool(req.signers[0].last_notified_on and req.signers[0].token_expiry), "moved to first: invited now")
-	_log(not req.signers[2].last_notified_on, "the one still waiting is not invited")
+	_log(bool(req.signers[0].invited_on and req.signers[0].token_expiry), "moved to first: invited now")
+	_log(not req.signers[2].invited_on, "the one still waiting is not invited")
 	_not_your_turn(req.signers[1].access_token, "the old first signer now waits their turn")
 
 	api.update_signature_request(req.name, api.get_editable_request(req.name)["signers"], sign_in_order=0)
 	req.reload()
 	_log(req.sign_in_order == 0, "switched off")
-	_log(all(s.last_notified_on for s in req.signers), "everyone is invited once the order is off")
+	_log(all(s.invited_on for s in req.signers), "everyone is invited once the order is off")
 
 	api.update_signature_request(req.name, api.get_editable_request(req.name)["signers"], sign_in_order=1)
 	req.reload()
@@ -1071,14 +1071,14 @@ def test_send_reminder():
 	print("\nremind now: only whoever the request is waiting on")
 	req = _create(_three("Remind"), sign_in_order=1)
 	emails = [f"remind-{i}@example.com" for i in range(3)]
-	before = _row(req, 0).last_notified_on
+	before = _row(req, 0).invited_on
 	with _Outbox() as out:
 		reminded = api.send_reminder(req.name)
 	_log(reminded == ["Remind 0"], f"returns who was reminded, got {reminded}")
 	_log(len(out.to(*emails)) == 1 and out.to(emails[0]), "one email, to the first signer")
 	_log("Reminder" in out.to(emails[0])[0]["subject"], "it is a reminder")
-	_log(_row(req, 0).last_notified_on >= before, "last_notified_on updated")
-	_log(not _row(req, 1).last_notified_on, "the others are left alone")
+	_log(_row(req, 0).invited_on == before and not _row(req, 0).reminders_sent, "an extra email: the schedule is untouched")
+	_log(not _row(req, 1).invited_on, "the others are left alone")
 
 	parallel = _create(_three("RemindAll"))
 	with _Outbox() as out:
@@ -1093,40 +1093,58 @@ def test_send_reminder():
 	_throws(lambda: api.send_reminder(parallel.name), "a withdrawn request can't be reminded")
 
 
-def test_daily_reminders():
-	print("\ndaily reminders after the interval in Signature Settings")
-	original = frappe.db.get_single_value("Signature Settings", "reminder_interval_days")
-	two_days_ago = add_days(now_datetime(), -2)
+def test_reminder_schedule():
+	print("\nreminders 2h, 8h, 1 day, 2 days and 4 days after the document reaches a signer")
+	from datetime import timedelta
+
+	original = frappe.db.get_single_value("Signature Settings", "disable_reminders")
+
+	def invited(req, idx, hours_ago):
+		frappe.db.set_value(
+			"Signature Request Signer", _row(req, idx).name, "invited_on", now_datetime() - timedelta(hours=hours_ago)
+		)
+
+	def remind(*reqs):
+		with _Outbox() as out:
+			api.send_reminders([r.name for r in reqs])  # only these: real requests are left alone
+		return out
+
 	try:
-		frappe.db.set_single_value("Signature Settings", "reminder_interval_days", 1)
-		stale = _create(_three("Stale"), sign_in_order=1)
-		fresh = _create([_signer("Email", None, "Fresh", "fresh@example.com")])
+		frappe.db.set_single_value("Signature Settings", "disable_reminders", 0)
+		req = _create(_three("Sched"), sign_in_order=1)
+		first = "sched-0@example.com"
+		invited(req, 0, 1)
+		_log(not remind(req).to(first), "1 hour in: nothing yet")
+		invited(req, 0, 2.1)
+		_log(len(remind(req).to(first)) == 1, "2 hours: first reminder")
+		_log(not remind(req).to(first), "run again straight away: not sent twice")
+		sent = []
+		for hours in (8.1, 24.1, 48.1, 96.1):
+			invited(req, 0, hours)
+			sent.append(len(remind(req).to(first)))
+		_log(sent == [1, 1, 1, 1], f"8 hours, 1 day, 2 days, 4 days: one each, got {sent}")
+		_log(_row(req, 0).reminders_sent == 5, "five reminders in all")
+		invited(req, 0, 300)
+		_log(not remind(req).to(first), "after the last one: no more")
+		invited(req, 1, 50)
+		_log(not remind(req).to("sched-1@example.com"), "not their turn: not reminded")
+
+		late = _create([_signer("Email", None, "Late", "late@example.com")])
+		invited(late, 0, 30)  # the scheduler was down: 2h, 8h and 1 day all passed
+		_log(len(remind(late).to("late@example.com")) == 1, "several due at once: one email, not a burst")
+		_log(_row(late, 0).reminders_sent == 3, "and the missed ones count as sent")
+
 		expired = _create([_signer("Email", None, "Expired", "expired@example.com")])
-		for req in (stale, expired):
-			frappe.db.set_value("Signature Request Signer", _row(req, 0).name, "last_notified_on", two_days_ago)
-		# A later signer backdated too: still not their turn, so never reminded.
-		frappe.db.set_value("Signature Request Signer", _row(stale, 1).name, "last_notified_on", two_days_ago)
+		invited(expired, 0, 3)
 		frappe.db.set_value(
 			"Signature Request Signer", _row(expired, 0).name, "token_expiry", add_days(now_datetime(), -1)
 		)
+		_log(not remind(expired).to("expired@example.com"), "link expired: not reminded")
 
-		with _Outbox() as out:
-			api.send_reminders()
-		_log(len(out.to("stale-0@example.com")) == 1, "in turn and quiet for 2 days: reminded")
-		_log(_row(stale, 0).last_notified_on > two_days_ago, "and last_notified_on moved forward")
-		_log(not out.to("stale-1@example.com", "stale-2@example.com"), "not their turn: not reminded")
-		_log(not out.to("fresh@example.com"), "invited just now: not reminded")
-		_log(not out.to("expired@example.com"), "link expired: not reminded")
-
-		with _Outbox() as out:
-			api.send_reminders()
-		_log(not out.to("stale-0@example.com"), "run again the same day: not reminded twice")
-
-		frappe.db.set_value("Signature Request Signer", _row(stale, 0).name, "last_notified_on", two_days_ago)
-		frappe.db.set_single_value("Signature Settings", "reminder_interval_days", 0)
-		with _Outbox() as out:
-			api.send_reminders()
-		_log(out == [], "interval 0: reminders are off, nothing sent")
+		off = _create([_signer("Email", None, "Off", "off@example.com")])
+		invited(off, 0, 3)
+		frappe.db.set_single_value("Signature Settings", "disable_reminders", 1)
+		_log(not remind(off), "reminders disabled: nothing sent")
 	finally:
-		frappe.db.set_single_value("Signature Settings", "reminder_interval_days", original)
+		frappe.db.set_single_value("Signature Settings", "disable_reminders", original or 0)
 		frappe.db.commit()

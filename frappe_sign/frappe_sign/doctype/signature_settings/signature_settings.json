@@ -5,7 +5,7 @@
  "engine": "InnoDB",
  "field_order": [
   "token_validity_days",
-  "reminder_interval_days"
+  "disable_reminders"
  ],
  "fields": [
   {
@@ -16,11 +16,11 @@
    "description": "How long an unused sign link stays valid."
   },
   {
-   "default": "3",
-   "fieldname": "reminder_interval_days",
-   "fieldtype": "Int",
-   "label": "Remind Every (Days)",
-   "description": "Re-email signers who haven't signed yet, every this many days, until the link expires. 0 turns reminders off."
+   "default": "0",
+   "fieldname": "disable_reminders",
+   "fieldtype": "Check",
+   "label": "Disable Reminders",
+   "description": "Signers who haven't signed are reminded 2 hours, 8 hours, 1 day, 2 days and 4 days after the document reaches them. Tick to stop sending reminders."
   }
  ],
  "issingle": 1,
