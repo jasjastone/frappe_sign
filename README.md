@@ -46,9 +46,10 @@ Tick **Signers sign in order** in the request dialog (↑/↓ set the order) to
 have them sign one after another instead: each is emailed only when the one
 before them has signed, and their link's validity starts then.
 
-Signers who haven't signed are reminded by email every few days (**Signature
-Settings → Remind Every (Days)**, default 3, 0 for off) until their link
-expires. **Send Reminder** on the record or the request reminds them now.
+Signers who haven't signed are reminded by email 2 hours, 8 hours, 1 day,
+2 days and 4 days after the document reaches them (sent, or their turn came),
+then no more. **Signature Settings → Disable Reminders** turns this off.
+**Send Reminder** on the record or the request sends an extra one now.
 
 Signers draw or upload a signature. The last one used is remembered per email
 (**Saved Signature**), so the next document is one click; signing with a new
