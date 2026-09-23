@@ -755,7 +755,7 @@ def get_dashboard_data():
 	waiting = frappe.db.sql(
 		f"""
 		select s.access_token, s.signer_name, r.name as request, r.title,
-			r.reference_doctype, r.reference_name
+			r.reference_doctype, r.reference_name, s.invited_on as since
 		from `tabSignature Request Signer` s
 		join `tabSignature Request` r on r.name = s.parent
 		where s.signer_type = 'User' and s.signer_reference = %s and {IN_TURN_SQL}
@@ -768,7 +768,7 @@ def get_dashboard_data():
 
 	sent = frappe.db.sql(
 		"""
-		select r.name, r.title, r.status, r.reference_doctype, r.reference_name,
+		select r.name, r.title, r.status, r.reference_doctype, r.reference_name, r.modified as since,
 			count(s.name) as total,
 			sum(case when s.status = 'Signed' then 1 else 0 end) as signed
 		from `tabSignature Request` r

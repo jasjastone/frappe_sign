@@ -484,7 +484,7 @@
     $(`<iframe class="sign-preview-frame" src="${frappe_sign.request_pdf_url(request)}"></iframe>`).appendTo(d.body);
     d.show();
   };
-  frappe_sign.open_sign_dialog = function(token, frm) {
+  frappe_sign.open_sign_dialog = function(token, frm, after) {
     const d = new frappe.ui.Dialog({ title: __("Sign"), size: "large" });
     d.show();
     frappe_sign.mount_sign_widget(d.body, token, {
@@ -493,6 +493,8 @@
         frappe.show_alert({ message: status === "Signed" ? __("Signed") : __("Rejected"), indicator: "green" });
         if (frm)
           frm.reload_doc();
+        if (after)
+          after();
       }
     });
   };
@@ -862,4 +864,4 @@
     }
   };
 })();
-//# sourceMappingURL=frappe_sign.bundle.6TCMRNGO.js.map
+//# sourceMappingURL=frappe_sign.bundle.KD7JWXVG.js.map
