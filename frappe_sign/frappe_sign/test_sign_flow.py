@@ -113,6 +113,7 @@ def run():
 		test_send_reminder()
 		test_reminder_schedule()
 		test_get_signers()
+		test_names_are_escaped()
 		print("\nAll checks passed.")
 	finally:
 		teardown()
@@ -1248,3 +1249,22 @@ def test_get_signers():
 		finally:
 			frappe.delete_doc("Contact", contact.name, force=True, ignore_permissions=True)
 			frappe.db.commit()
+
+
+def test_names_are_escaped():
+	print("\nnames and reasons are escaped where they become HTML")
+	req = _create([_signer("Email", None, "<img src=x onerror=alert(1)>", "xss@example.com")])
+	frappe.set_user("Guest")
+	api.reject_signature(_token(req), "<script>alert(1)</script>")
+	frappe.set_user("Administrator")
+	try:
+		api.check_signed_before_submit(frappe._dict(doctype="ToDo", name=req.reference_name))
+		msg = ""
+	except frappe.ValidationError as e:
+		msg = str(e)
+	frappe.clear_messages()
+	_log("<script>" not in msg and "&lt;script&gt;" in msg, "decline reason escaped in the submit message")
+	_log("<img" not in msg and "&lt;img" in msg, "signer name escaped too")
+	with _Outbox() as out:
+		api._email_rejected(req, frappe.get_doc("Signature Request", req.name).signers[0], "no")
+	_log("<img" not in out[0]["message"], "and in the email body")

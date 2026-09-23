@@ -527,7 +527,7 @@
         frappe.msgprint({
           title: __("Some default signers were left out"),
           indicator: "orange",
-          message: defaults.warnings.map((w) => `<p>${frappe.utils.escape_html(w)}</p>`).join("")
+          message: defaults.warnings.map((w) => `<p>${w}</p>`).join("")
         });
       }
     }
@@ -832,7 +832,7 @@
         return frappe.msgprint(__("Add at least one signer."));
       const unplaced = signers.find((s) => !s.sign_boxes.length);
       if (unplaced) {
-        return frappe.msgprint(__("Place a signature box for {0} before sending.", [unplaced.signer_name]));
+        return frappe.msgprint(__("Place a signature box for {0} before sending.", [frappe.utils.escape_html(unplaced.signer_name)]));
       }
       frappe.call(
         request_name ? {
@@ -862,4 +862,4 @@
     }
   };
 })();
-//# sourceMappingURL=frappe_sign.bundle.6P3DHHOU.js.map
+//# sourceMappingURL=frappe_sign.bundle.6TCMRNGO.js.map

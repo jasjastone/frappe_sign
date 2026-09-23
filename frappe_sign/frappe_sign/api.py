@@ -191,7 +191,7 @@ def _remind(request, signer):
 			"<p>Hello {0},</p>"
 			"<p>A reminder that {1} is still waiting for your signature.{2}</p>"
 			'<p><a href="{3}">Open and sign {1}</a></p>'
-		).format(signer.signer_name, request.title, expiry, _sign_link(signer)),
+		).format(escape_html(signer.signer_name), escape_html(request.title), expiry, _sign_link(signer)),
 	)
 
 
@@ -339,7 +339,7 @@ def _signer_details(signer_type, reference):
 	if not email:
 		frappe.throw(
 			_("{0} {1} has no email address, so they can't be sent a signing link. Raise a support ticket to have an email added to their record, then try again.").format(
-				_(signer_type), name or reference
+				_(signer_type), escape_html(name or reference)
 			),
 			title=_("No Email Address"),
 		)
@@ -392,7 +392,7 @@ def get_default_signers(reference_doctype, reference_name):
 		signer_type = entry.signer_type
 		try:
 			if not isinstance(signer_type, str) or signer_type not in SIGNER_TYPES:
-				frappe.throw(_("Invalid signer type {0}").format(signer_type))
+				frappe.throw(_("Invalid signer type {0}").format(escape_html(str(signer_type))))
 			if signer_type != "User" and not config.allow_external_signers:
 				frappe.throw(_("Only User signers are allowed for {0}.").format(_(reference_doctype)))
 			if signer_type == "Email":
@@ -414,7 +414,7 @@ def get_default_signers(reference_doctype, reference_name):
 			warnings.append(_("Default signer {0} couldn't be read, so it was left out.").format(n))
 			continue
 		if email in seen:
-			warnings.append(_("{0} is listed more than once; added once.").format(signer["signer_email"]))
+			warnings.append(_("{0} is listed more than once; added once.").format(escape_html(signer["signer_email"])))
 			continue
 		seen.add(email)
 		signers.append(
@@ -432,7 +432,7 @@ def get_default_signers(reference_doctype, reference_name):
 def get_signer_details(signer_type, reference):
 	"""What the request dialog shows (read-only) once a signer is picked."""
 	if signer_type not in SIGNER_TYPES or signer_type == "Email":
-		frappe.throw(_("Invalid signer type {0}").format(signer_type))
+		frappe.throw(_("Invalid signer type {0}").format(escape_html(str(signer_type))))
 	if not frappe.has_permission(signer_type, "read", reference):
 		raise frappe.PermissionError
 	return _signer_details(signer_type, reference)
@@ -444,7 +444,7 @@ def _validate_unique_signers(signers):
 	for s in signers:
 		email = (s.get("signer_email") or "").strip().lower()
 		if email in seen:
-			frappe.throw(_("{0} is added more than once as a signer.").format(s.get("signer_email")))
+			frappe.throw(_("{0} is added more than once as a signer.").format(escape_html(s.get("signer_email"))))
 		seen.add(email)
 
 
@@ -457,7 +457,7 @@ def _get_signable_config(reference_doctype):
 
 def _validate_signer_payload(s, config):
 	if s.get("signer_type") not in SIGNER_TYPES:
-		frappe.throw(_("Invalid signer type {0}").format(s.get("signer_type")))
+		frappe.throw(_("Invalid signer type {0}").format(escape_html(str(s.get("signer_type")))))
 
 	if config and not config.allow_external_signers and s.get("signer_type") != "User":
 		frappe.throw(_("Only User signers are allowed for {0}.").format(config.document_type))
@@ -474,12 +474,12 @@ def _validate_signer_payload(s, config):
 	# D14 — placement is mandatory: at least one box, as many as the document needs.
 	boxes = frappe.parse_json(s.get("sign_boxes")) or []
 	if not isinstance(boxes, list) or not boxes:
-		frappe.throw(_("Place a signature box for {0} before sending.").format(s.get("signer_name")))
+		frappe.throw(_("Place a signature box for {0} before sending.").format(escape_html(s.get("signer_name"))))
 	clean = []
 	for b in boxes:
 		b = {k: flt((b or {}).get(k)) for k in ("page", "x", "y", "w", "h")}
 		if not (b["w"] > 0 and b["h"] > 0) or b["page"] < 0 or b["x"] < 0 or b["y"] < 0:
-			frappe.throw(_("A signature box for {0} has no size.").format(s.get("signer_name")))
+			frappe.throw(_("A signature box for {0} has no size.").format(escape_html(s.get("signer_name"))))
 		b["page"] = int(b["page"])
 		clean.append(b)
 	s["sign_boxes"] = clean
@@ -518,7 +518,7 @@ def _resolve_signer(key, lock=False):
 	# One rejection closes the whole request (3.3) — nobody else can sign it after.
 	if request.status == "Rejected":
 		frappe.throw(
-			_("This document was declined by {0}, so it can no longer be signed.").format(request.rejected_by),
+			_("This document was declined by {0}, so it can no longer be signed.").format(escape_html(request.rejected_by)),
 			frappe.PermissionError,
 		)
 	if request.status == "Withdrawn":
@@ -533,7 +533,7 @@ def _resolve_signer(key, lock=False):
 	if not _is_turn(request, signer):
 		first = next(s for s in request.signers if s.status == "Pending")
 		frappe.throw(
-			_("It's not your turn to sign yet: waiting for {0} to sign first.").format(first.signer_name),
+			_("It's not your turn to sign yet: waiting for {0} to sign first.").format(escape_html(first.signer_name)),
 			frappe.PermissionError,
 		)
 
@@ -813,7 +813,7 @@ def _email_request_created(request, signer):
 			"<p>Hello {0},</p>"
 			"<p>You have a document waiting for your signature:</p>"
 			'<p><a href="{1}">Open and sign {2}</a></p>'
-		).format(signer.signer_name, _sign_link(signer), request.title),
+		).format(escape_html(signer.signer_name), _sign_link(signer), escape_html(request.title)),
 	)
 
 
@@ -821,7 +821,7 @@ def _email_rejected(request, signer, reason):
 	_send(
 		recipients=[request.created_by_user],
 		subject=_("Rejected: {0}").format(request.title),
-		message=_("<p>Rejected by {0} — {1}</p>").format(signer.signer_name, escape_html(reason)),
+		message=_("<p>Rejected by {0} — {1}</p>").format(escape_html(signer.signer_name), escape_html(reason)),
 	)
 
 
@@ -831,7 +831,7 @@ def _email_completed(request):
 		recipients=list(dict.fromkeys(filter(None, recipients))),
 		subject=_("Signed: {0}").format(request.title),
 		message=_("<p>{0} has been signed by everyone. The signed copy is attached.</p>").format(
-			request.title
+			escape_html(request.title)
 		),
 		attachments=[{"file_url": request.signed_pdf}],
 	)
@@ -978,7 +978,7 @@ def check_signed_before_submit(doc, method=None):
 		msg = _("Request a signature for this {0} before submitting it.").format(_(doc.doctype))
 	elif request.status == "Rejected":
 		msg = _("{0} declined to sign ({1}). Request a new signature before submitting.").format(
-			request.rejected_by, request.rejection_reason
+			escape_html(request.rejected_by), escape_html(request.rejection_reason)
 		)
 	else:
 		signed = sum(1 for s in request.signers if s.status == "Signed")
