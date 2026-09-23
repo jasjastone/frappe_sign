@@ -142,7 +142,7 @@ window.frappe_sign = window.frappe_sign || {};
 						? __("You sign in {0} places. One signature fills all of them.", [ctx.sign_boxes.length])
 						: __("Read the document, then sign in the highlighted box.")
 				}
-				<a class="sign-show-where">${__("Show where")}</a>
+				<button type="button" class="sign-show-where">↓ ${__("Show where to sign")}</button>
 			</div>
 			<div class="sign-pdf-pages"></div>
 			<div class="sign-pad-section">

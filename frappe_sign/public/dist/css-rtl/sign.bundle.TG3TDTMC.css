@@ -1,4 +1,4 @@
-/* ../../../../../../../tmp/tmp-765191-wWVUl1SFRsF1/frappe_sign/frappe_sign/public/css/sign.bundle.css */
+/* ../../../../../../../tmp/tmp-765191-dOqpZiPZE75c/frappe_sign/frappe_sign/public/css/sign.bundle.css */
 .frappe-sign-widget .sign-doc-head {
   display: flex;
   justify-content: space-between;
@@ -10,11 +10,28 @@
   font-weight: 600;
 }
 .frappe-sign-widget .sign-places {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
   margin-bottom: 8px;
 }
 .frappe-sign-widget .sign-show-where {
-  cursor: pointer;
+  padding: 3px 10px;
+  border: 1px solid var(--blue-500, #2490ef);
+  border-radius: 999px;
+  background: rgba(36, 144, 239, 0.1);
+  color: var(--blue-600, #1a7fd9);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
   white-space: nowrap;
+  cursor: pointer;
+}
+.frappe-sign-widget .sign-show-where:hover,
+.frappe-sign-widget .sign-show-where:focus-visible {
+  background: rgba(36, 144, 239, 0.2);
+  outline: none;
 }
 .frappe-sign-widget .sign-pdf-pages {
   background: #f4f5f6;
@@ -166,8 +183,8 @@
 .sign-place-box .sign-place-label {
   position: absolute;
   top: 2px;
-  left: 4px;
-  right: 18px;
+  right: 4px;
+  left: 18px;
   font-size: 11px;
   line-height: 1.2;
   color: #1f272e;
@@ -179,7 +196,7 @@
 .sign-place-box .sign-place-remove {
   position: absolute;
   top: -9px;
-  right: -9px;
+  left: -9px;
   width: 18px;
   height: 18px;
   line-height: 16px;
@@ -193,14 +210,14 @@
 }
 .sign-place-box .sign-place-resize {
   position: absolute;
-  right: -6px;
+  left: -6px;
   bottom: -6px;
   width: 12px;
   height: 12px;
   background: var(--c);
   border: 2px solid #fff;
   border-radius: 2px;
-  cursor: nwse-resize;
+  cursor: nesw-resize;
 }
 .sign-signer-row {
   cursor: pointer;
@@ -210,14 +227,14 @@
   font-weight: 600;
 }
 .sign-signer-row.is-active td:first-child {
-  box-shadow: inset 4px 0 0 var(--c);
+  box-shadow: inset -4px 0 0 var(--c);
 }
 .sign-signer-swatch {
   display: inline-block;
   width: 10px;
   height: 10px;
   border-radius: 2px;
-  margin-right: 6px;
+  margin-left: 6px;
   vertical-align: middle;
 }
 .sign-preview-frame {
@@ -307,7 +324,7 @@
 .sign-dash-card {
   padding: 14px 16px;
   border: 1px solid var(--border-color, #d1d8dd);
-  border-left: 4px solid var(--c);
+  border-right: 4px solid var(--c);
   border-radius: 8px;
   background: var(--card-bg, #fff);
   cursor: pointer;
@@ -364,4 +381,4 @@
   padding: 24px 16px;
   text-align: center;
 }
-/*# sourceMappingURL=sign.bundle.GHEBSFF5.css.map */
+/*# sourceMappingURL=sign.bundle.TG3TDTMC.css.map */
