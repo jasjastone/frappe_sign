@@ -134,7 +134,7 @@
 			</div>
 			<div class="sign-places text-muted small">
 				${ctx.sign_boxes.length > 1 ? __("You sign in {0} places. One signature fills all of them.", [ctx.sign_boxes.length]) : __("Read the document, then sign in the highlighted box.")}
-				<a class="sign-show-where">${__("Show where")}</a>
+				<button type="button" class="sign-show-where">\u2193 ${__("Show where to sign")}</button>
 			</div>
 			<div class="sign-pdf-pages"></div>
 			<div class="sign-pad-section">
@@ -484,7 +484,7 @@
     $(`<iframe class="sign-preview-frame" src="${frappe_sign.request_pdf_url(request)}"></iframe>`).appendTo(d.body);
     d.show();
   };
-  frappe_sign.open_sign_dialog = function(token, frm) {
+  frappe_sign.open_sign_dialog = function(token, frm, after) {
     const d = new frappe.ui.Dialog({ title: __("Sign"), size: "large" });
     d.show();
     frappe_sign.mount_sign_widget(d.body, token, {
@@ -493,6 +493,8 @@
         frappe.show_alert({ message: status === "Signed" ? __("Signed") : __("Rejected"), indicator: "green" });
         if (frm)
           frm.reload_doc();
+        if (after)
+          after();
       }
     });
   };
@@ -862,4 +864,4 @@
     }
   };
 })();
-//# sourceMappingURL=frappe_sign.bundle.6TCMRNGO.js.map
+//# sourceMappingURL=frappe_sign.bundle.TMKXAUUU.js.map

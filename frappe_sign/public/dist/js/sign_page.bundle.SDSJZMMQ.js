@@ -114,7 +114,7 @@
 			</div>
 			<div class="sign-places text-muted small">
 				${ctx.sign_boxes.length > 1 ? __("You sign in {0} places. One signature fills all of them.", [ctx.sign_boxes.length]) : __("Read the document, then sign in the highlighted box.")}
-				<a class="sign-show-where">${__("Show where")}</a>
+				<button type="button" class="sign-show-where">\u2193 ${__("Show where to sign")}</button>
 			</div>
 			<div class="sign-pdf-pages"></div>
 			<div class="sign-pad-section">
@@ -290,4 +290,4 @@
     };
   })();
 })();
-//# sourceMappingURL=sign_page.bundle.ANI65QKM.js.map
+//# sourceMappingURL=sign_page.bundle.SDSJZMMQ.js.map

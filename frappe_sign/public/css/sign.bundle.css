@@ -11,12 +11,32 @@
 }
 
 .frappe-sign-widget .sign-places {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px 10px;
 	margin-bottom: 8px;
 }
 
+/* Same blue as the "Sign here" box it jumps to: clearly a button, but quieter
+   than Accept & Sign. */
 .frappe-sign-widget .sign-show-where {
-	cursor: pointer;
+	padding: 3px 10px;
+	border: 1px solid var(--blue-500, #2490ef);
+	border-radius: 999px;
+	background: rgba(36, 144, 239, 0.1);
+	color: var(--blue-600, #1a7fd9);
+	font-size: 12px;
+	font-weight: 600;
+	line-height: 1.4;
 	white-space: nowrap;
+	cursor: pointer;
+}
+
+.frappe-sign-widget .sign-show-where:hover,
+.frappe-sign-widget .sign-show-where:focus-visible {
+	background: rgba(36, 144, 239, 0.2);
+	outline: none;
 }
 
 /* The signer's document flows with the page — no inner scroll box — so a phone
@@ -367,4 +387,85 @@
 .sign-move {
 	padding: 0 2px;
 	text-decoration: none;
+}
+
+/* --- Sign dashboard: number cards + one-line rows ------------------------ */
+
+.sign-dash-cards {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+	gap: 12px;
+	margin-bottom: 16px;
+}
+
+.sign-dash-card {
+	padding: 14px 16px;
+	border: 1px solid var(--border-color, #d1d8dd);
+	border-left: 4px solid var(--c);
+	border-radius: 8px;
+	background: var(--card-bg, #fff);
+	cursor: pointer;
+}
+
+.sign-dash-card:hover,
+.sign-dash-card.is-active {
+	box-shadow: 0 0 0 2px var(--c);
+}
+
+.sign-dash-number {
+	font-size: 28px;
+	font-weight: 600;
+	line-height: 1.1;
+	color: var(--c);
+}
+
+.sign-dash-label {
+	margin-top: 4px;
+	color: var(--text-muted, #6c7680);
+	font-size: var(--text-sm, 13px);
+}
+
+.sign-dash-list {
+	padding: 0;
+	overflow: hidden;
+}
+
+.sign-dash-list-head {
+	padding: 10px 16px;
+	font-weight: 600;
+	border-bottom: 1px solid var(--border-color, #d1d8dd);
+}
+
+.sign-dash-row {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 10px 16px;
+	border-bottom: 1px solid var(--border-color, #d1d8dd);
+	cursor: pointer;
+}
+
+.sign-dash-row:last-child {
+	border-bottom: 0;
+}
+
+.sign-dash-row:hover {
+	background: var(--fg-hover-color, #f4f5f6);
+}
+
+.sign-dash-main {
+	flex: 1;
+	min-width: 0;
+}
+
+.sign-dash-right {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	white-space: nowrap;
+}
+
+.sign-dash-empty {
+	padding: 24px 16px;
+	text-align: center;
 }
