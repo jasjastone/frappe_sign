@@ -517,7 +517,7 @@
       const defaults = await frappe.xcall("frappe_sign.frappe_sign.api.get_default_signers", {
         reference_doctype: frm.doctype,
         reference_name: frm.doc.name
-      });
+      }).catch(() => ({ signers: [], warnings: [] }));
       defaults.signers.forEach(
         (s) => signers.push(__spreadProps(__spreadValues({}, s), { sign_boxes: [], color: COLORS[next_color++ % COLORS.length] }))
       );
@@ -862,4 +862,4 @@
     }
   };
 })();
-//# sourceMappingURL=frappe_sign.bundle.636O63OS.js.map
+//# sourceMappingURL=frappe_sign.bundle.6P3DHHOU.js.map

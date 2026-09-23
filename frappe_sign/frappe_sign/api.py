@@ -387,24 +387,32 @@ def get_default_signers(reference_doctype, reference_name):
 		return {"signers": [], "warnings": [_("Couldn't read this document's default signers. Add them by hand.")]}
 
 	signers, warnings, seen = [], [], set()
-	for entry in entries:
+	for n, entry in enumerate(entries, 1):
 		entry = frappe._dict(entry if isinstance(entry, dict) else {})
 		signer_type = entry.signer_type
 		try:
-			if signer_type not in SIGNER_TYPES:
+			if not isinstance(signer_type, str) or signer_type not in SIGNER_TYPES:
 				frappe.throw(_("Invalid signer type {0}").format(signer_type))
 			if signer_type != "User" and not config.allow_external_signers:
 				frappe.throw(_("Only User signers are allowed for {0}.").format(_(reference_doctype)))
 			if signer_type == "Email":
-				if not entry.signer_email:
+				if not entry.signer_email or not isinstance(entry.signer_email, str):
 					frappe.throw(_("An Email signer in the default signers has no email address."))
-				signer = {"signer_name": entry.signer_name or entry.signer_email, "signer_email": entry.signer_email}
+				name = entry.signer_name if isinstance(entry.signer_name, str) else None
+				signer = {"signer_name": name or entry.signer_email, "signer_email": entry.signer_email}
+			elif not entry.signer_reference or not isinstance(entry.signer_reference, str):
+				frappe.throw(_("Pick the {0} who should sign.").format(_(signer_type)))
 			else:
 				signer = _signer_details(signer_type, entry.signer_reference)
+			email = signer["signer_email"].strip().lower()
 		except frappe.ValidationError as e:
 			warnings.append(str(e))
 			continue
-		email = signer["signer_email"].strip().lower()
+		except Exception:
+			# Anything unexpected in one entry costs that entry, never the dialog.
+			frappe.log_error(title=f"Sign: bad get_signers entry for {reference_doctype} {reference_name}")
+			warnings.append(_("Default signer {0} couldn't be read, so it was left out.").format(n))
+			continue
 		if email in seen:
 			warnings.append(_("{0} is listed more than once; added once.").format(signer["signer_email"]))
 			continue

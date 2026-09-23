@@ -75,6 +75,8 @@ def run():
 	# From the CLI there is no request to take the host from, and this site is
 	# named after a real public domain — point wkhtmltopdf at the local server.
 	frappe.local.conf.host_name = os.environ.get("SIGN_TEST_HOST") or frappe.local.conf.host_name or "http://localhost:8000"
+	# No email leaves or is queued: User signers here are real people.
+	real_send, api._send = api._send, lambda **kw: None
 	setup()
 	try:
 		test_doctype_enabled_by_one_row()
@@ -114,6 +116,7 @@ def run():
 		print("\nAll checks passed.")
 	finally:
 		teardown()
+		api._send = real_send
 
 
 # ---------------------------------------------------------------------------
@@ -269,16 +272,23 @@ def test_external_signer_types():
 			)
 
 	for signer_type in has_email:
-		bare = frappe.db.get_value(signer_type, {k: ("is", "not set") for k in has_email[signer_type]}, "name")
-		if signer_type == "Employee" and bare:
-			e = frappe.db.get_value("Employee", bare, ["personal_email", "prefered_email", "user_id"], as_dict=True)
-			bare = None if (e.personal_email or e.prefered_email or e.user_id) else bare
+		bare = _without_email(signer_type)
 		if bare:
 			_throws(
 				lambda: _create([_signer(signer_type, bare, "Typed", "typed@example.com")]),
 				f"{signer_type} with no email is refused (typed email ignored)",
 			)
 	_throws(lambda: api.get_signer_details("Email", "x"), "no lookup for a plain Email signer")
+
+
+def _without_email(signer_type):
+	"""A record the app finds no email for at all (a linked Contact counts)."""
+	for name in frappe.get_all(signer_type, pluck="name", limit=200):
+		try:
+			api._signer_details(signer_type, name)
+		except frappe.ValidationError:
+			frappe.clear_messages()
+			return name
 
 
 def test_mixed_request_any_order():
@@ -1169,7 +1179,7 @@ def test_get_signers():
 	_log(get() == {"signers": [], "warnings": []}, "no get_signers(): nothing pre-filled")
 
 	admin = frappe.db.get_value("User", "Administrator", ["full_name", "email"], as_dict=True)
-	no_email = frappe.db.get_value("Customer", {"email_id": ("is", "not set")}, "name")
+	no_email = _without_email("Customer")
 	ToDo.get_signers = lambda self: [
 		{"signer_type": "Email", "signer_name": "First Out", "signer_email": "first-out@example.com"},
 		{"signer_type": "User", "signer_reference": "Administrator"},
@@ -1177,6 +1187,10 @@ def test_get_signers():
 		{"signer_type": "Customer", "signer_reference": no_email},
 		{"signer_type": "Robot", "signer_reference": "x"},
 		{"signer_reference": "Administrator"},  # no type
+		{"signer_type": "Email", "signer_email": ["not", "text"]},
+		{"signer_type": "User", "signer_reference": {"a": 1}},
+		{"signer_type": ["User"], "signer_reference": "Administrator"},
+		"not a dict",
 	]
 	try:
 		res = get()
@@ -1188,7 +1202,8 @@ def test_get_signers():
 		_log(res["signers"][1]["signer_reference"] == "Administrator", "the record is kept as the reference")
 		warnings = " ".join(res["warnings"])
 		_log("more than once" in warnings, "a duplicate email is added once, with a warning")
-		_log(warnings.count("Invalid signer type") == 2, "an unknown or missing type is a warning, not a failure")
+		_log(warnings.count("Invalid signer type") == 4, "an unknown, missing or malformed type is a warning, not a failure")
+		_log("no email address" in warnings and "Pick the User" in warnings, "a malformed email or reference is a warning too")
 		if no_email:
 			_log("support ticket" in warnings, "a record with no email is a warning telling them to raise a ticket")
 		_log(not frappe.message_log, "nothing pops up besides the warnings")

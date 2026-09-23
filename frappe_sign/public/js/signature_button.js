@@ -289,10 +289,14 @@ frappe_sign.open_request_dialog = async function (frm, config, request_name) {
 		active = signers[0] || null;
 	} else if (!standalone) {
 		// A doctype can name its own signers with get_signers() on its controller.
-		const defaults = await frappe.xcall("frappe_sign.frappe_sign.api.get_default_signers", {
-			reference_doctype: frm.doctype,
-			reference_name: frm.doc.name,
-		});
+		// Defaults are a convenience: if they can't load, open the dialog empty
+		// (xcall has already shown the error) so signers can still be added by hand.
+		const defaults = await frappe
+			.xcall("frappe_sign.frappe_sign.api.get_default_signers", {
+				reference_doctype: frm.doctype,
+				reference_name: frm.doc.name,
+			})
+			.catch(() => ({ signers: [], warnings: [] }));
 		defaults.signers.forEach((s) =>
 			signers.push({ ...s, sign_boxes: [], color: COLORS[next_color++ % COLORS.length] })
 		);
