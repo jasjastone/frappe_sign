@@ -10,7 +10,9 @@
   "default_print_format",
   "allow_external_signers",
   "require_signature_to_submit",
-  "submit_when_signed"
+  "submit_when_signed",
+  "section_break_get_signers",
+  "get_signers_help"
  ],
  "fields": [
   {
@@ -57,10 +59,21 @@
    "fieldtype": "Check",
    "label": "Submit When Signed",
    "description": "Submit the document automatically once everyone has signed its latest request. If submitting fails, it stays in draft with a comment saying why."
+  },
+  {
+   "fieldname": "section_break_get_signers",
+   "fieldtype": "Section Break",
+   "label": "Default Signers (for developers)",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "get_signers_help",
+   "fieldtype": "HTML",
+   "options": "<div class=\"text-muted small\">\n<p>To have <b>Request Signature</b> open with the signers already listed, define <code>get_signers()</code> on this doctype's controller. It returns a list of dicts, one per signer, <b>in signing order</b>:</p>\n<pre>def get_signers(self):\n    return [\n        {\"signer_type\": \"Employee\", \"signer_reference\": self.employee},\n        {\"signer_type\": \"User\", \"signer_reference\": self.approver},\n        {\"signer_type\": \"Email\", \"signer_name\": \"Jane Doe\", \"signer_email\": \"jane@example.com\"},\n    ]</pre>\n<ul>\n<li><code>signer_type</code> (required): <code>User</code>, <code>Employee</code>, <code>Customer</code>, <code>Supplier</code> or <code>Email</code>. Anything but User needs <b>Allow External Signers</b>.</li>\n<li><code>signer_reference</code> (required, except Email): the record's name. Name and email are always taken from that record.</li>\n<li><code>signer_email</code> (Email only, required) and <code>signer_name</code> (Email only, optional).</li>\n</ul>\n<p>Every entry becomes a signer. Unusable entries (no email on the record, unknown type, duplicate email) are shown to the requester as warnings; the rest still load.</p>\n</div>"
   }
  ],
  "links": [],
- "modified": "2026-09-22 00:00:00.000000",
+ "modified": "2026-09-23 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "Frappe Sign",
  "name": "Signable Document Type",

@@ -320,8 +320,22 @@ def _signer_details(signer_type, reference):
 		name = e.employee_name
 		email = e.prefered_email or e.company_email or e.personal_email
 		email = email or (e.user_id and frappe.db.get_value("User", e.user_id, "email"))
-	else:  # Customer / Supplier: the primary contact's email
+	else:  # Customer / Supplier: their email, else a linked Contact's, else a linked Address's
 		name, email = frappe.db.get_value(signer_type, reference, [f"{signer_type.lower()}_name", "email_id"])
+		for linked in ("Contact", "Address") if not email else ():
+			found = frappe.get_all(
+				linked,
+				filters=[
+					["Dynamic Link", "link_doctype", "=", signer_type],
+					["Dynamic Link", "link_name", "=", reference],
+					["email_id", "is", "set"],
+				],
+				pluck="email_id",
+				limit=1,
+			)
+			if found:
+				email = found[0]
+				break
 	if not email:
 		frappe.throw(
 			_("{0} {1} has no email address, so they can't be sent a signing link. Raise a support ticket to have an email added to their record, then try again.").format(
@@ -330,6 +344,80 @@ def _signer_details(signer_type, reference):
 			title=_("No Email Address"),
 		)
 	return {"signer_name": name or reference, "signer_email": email}
+
+
+@frappe.whitelist()
+def get_default_signers(reference_doctype, reference_name):
+	"""The signers a record names itself, to pre-fill the Request Signature dialog.
+
+	A signable doctype opts in by defining get_signers() on its controller. It
+	returns a list of dicts, one per signer, in signing order:
+
+		def get_signers(self):
+			return [
+				{"signer_type": "Employee", "signer_reference": self.employee},
+				{"signer_type": "User", "signer_reference": self.approver},
+				{"signer_type": "Email", "signer_name": "Jane Doe", "signer_email": "jane@example.com"},
+			]
+
+	signer_type       User, Employee, Customer or Supplier: signer_reference is
+	                  required, and the name and email are always taken from
+	                  that record. Email: signer_email is required, signer_name
+	                  optional (defaults to the email). Other types need
+	                  Allow External Signers on the Signable Document Type.
+	signer_reference  The record's name (User id, Employee id, ...). Not for Email.
+
+	Every entry becomes a signer. An entry that can't be used (no email on the
+	record, unknown type, same email twice, empty reference) comes back as a
+	warning and the rest still load; so does a get_signers() that raises.
+	"""
+	if not frappe.has_permission(reference_doctype, "write", reference_name):
+		raise frappe.PermissionError
+	config = _get_signable_config(reference_doctype)
+	doc = frappe.get_doc(reference_doctype, reference_name)
+	if not hasattr(doc, "get_signers"):
+		return {"signers": [], "warnings": []}
+	try:
+		entries = doc.get_signers() or []
+		if not isinstance(entries, list | tuple):
+			raise TypeError("get_signers() must return a list of dicts")
+	except Exception:
+		frappe.log_error(title=f"Sign: get_signers failed for {reference_doctype} {reference_name}")
+		frappe.clear_messages()
+		return {"signers": [], "warnings": [_("Couldn't read this document's default signers. Add them by hand.")]}
+
+	signers, warnings, seen = [], [], set()
+	for entry in entries:
+		entry = frappe._dict(entry if isinstance(entry, dict) else {})
+		signer_type = entry.signer_type
+		try:
+			if signer_type not in SIGNER_TYPES:
+				frappe.throw(_("Invalid signer type {0}").format(signer_type))
+			if signer_type != "User" and not config.allow_external_signers:
+				frappe.throw(_("Only User signers are allowed for {0}.").format(_(reference_doctype)))
+			if signer_type == "Email":
+				if not entry.signer_email:
+					frappe.throw(_("An Email signer in the default signers has no email address."))
+				signer = {"signer_name": entry.signer_name or entry.signer_email, "signer_email": entry.signer_email}
+			else:
+				signer = _signer_details(signer_type, entry.signer_reference)
+		except frappe.ValidationError as e:
+			warnings.append(str(e))
+			continue
+		email = signer["signer_email"].strip().lower()
+		if email in seen:
+			warnings.append(_("{0} is listed more than once; added once.").format(signer["signer_email"]))
+			continue
+		seen.add(email)
+		signers.append(
+			{
+				**signer,
+				"signer_type": signer_type,
+				"signer_reference": None if signer_type == "Email" else entry.signer_reference,
+			}
+		)
+	frappe.clear_messages()  # the warnings carry them; don't also pop them up
+	return {"signers": signers, "warnings": warnings}
 
 
 @frappe.whitelist()

@@ -28,6 +28,37 @@ Add one **Signable Document Type** row — document type, print format, and
 whether non-User signers are allowed. No code, ever. A "Request Signature"
 button then appears on that doctype's form.
 
+### Default signers from code: `get_signers()`
+
+A signable doctype can name its own signers by defining `get_signers()` on its
+controller. **Request Signature** then opens with them already listed, in that
+order and set to sign in order; the requester only places the boxes.
+
+It returns a list of dicts, one per signer, in signing order:
+
+```python
+class EngagementAgreement(Document):
+    def get_signers(self):
+        return [
+            {"signer_type": "Employee", "signer_reference": self.employee},
+            {"signer_type": "User", "signer_reference": self.ceo_signer},
+            {"signer_type": "Email", "signer_name": "Jane Doe", "signer_email": "jane@example.com"},
+        ]
+```
+
+| Key | Required | Notes |
+|---|---|---|
+| `signer_type` | yes | `User`, `Employee`, `Customer`, `Supplier` or `Email`. Anything but `User` needs **Allow External Signers** on the Signable Document Type. |
+| `signer_reference` | yes, except `Email` | The record's name. Name and email are always taken from it: User email; Employee preferred → company → personal → user email; Customer / Supplier email, else a linked Contact's, else a linked Address's. |
+| `signer_email` | `Email` only | Where the signing link goes. |
+| `signer_name` | no (`Email` only) | Defaults to the email. |
+
+Every entry becomes a signer. An entry that can't be used (no email on the
+record, unknown type, the same email twice) is shown to the requester as a
+warning and the rest still load; a `get_signers()` that raises is logged to
+the Error Log and the dialog opens empty. The same reference is shown on the
+Signable Document Type form, under **Default Signers (for developers)**.
+
 ### Signing a PDF with no record behind it
 
 For letters, contracts or anything made in an office suite: create a new

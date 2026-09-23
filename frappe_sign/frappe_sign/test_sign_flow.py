@@ -9,6 +9,7 @@ Creates and then removes its own data. Asserts only — no test framework.
 
 import base64
 import copy
+import os
 
 import frappe
 from frappe.utils import add_days, now_datetime
@@ -24,7 +25,7 @@ PNG = base64.b64encode(
 
 BOX = {"page": 0, "x": 60.0, "y": 600.0, "w": 140.0, "h": 45.0}
 
-_created = {"requests": [], "config": None, "supplier": None, "saved_signatures": set()}
+_created = {"requests": [], "config": None, "supplier": None, "saved_signatures": {}}
 
 
 def _log(ok, label):
@@ -73,7 +74,7 @@ def run():
 	frappe.flags.in_test = True
 	# From the CLI there is no request to take the host from, and this site is
 	# named after a real public domain — point wkhtmltopdf at the local server.
-	frappe.local.conf.host_name = frappe.local.conf.host_name or "http://localhost:8000"
+	frappe.local.conf.host_name = os.environ.get("SIGN_TEST_HOST") or frappe.local.conf.host_name or "http://localhost:8000"
 	setup()
 	try:
 		test_doctype_enabled_by_one_row()
@@ -109,6 +110,7 @@ def run():
 		test_update_switches_order()
 		test_send_reminder()
 		test_reminder_schedule()
+		test_get_signers()
 		print("\nAll checks passed.")
 	finally:
 		teardown()
@@ -137,7 +139,12 @@ def setup():
 		).insert(ignore_permissions=True)
 		_created["supplier"] = s.name
 	# Anything not here at the start was made by these checks and is removed after.
-	_created["saved_signatures"] = set(frappe.get_all("Saved Signature", pluck="name"))
+	# Real people's saved signatures, as they are now: a User signer in these
+	# checks signs with that user's real email, which replaces theirs.
+	_created["saved_signatures"] = {
+		s.name: api._read_file(s.signature) if s.signature else None
+		for s in frappe.get_all("Saved Signature", ["name", "signature"])
+	}
 	frappe.db.commit()
 
 
@@ -149,8 +156,12 @@ def teardown():
 		frappe.delete_doc("Signable Document Type", _created["config"], force=True)
 		# enabling ToDo gave it a signature_status field; take it back off
 		frappe.delete_doc("Custom Field", "ToDo-signature_status", force=True, ignore_missing=True)
-	for name in set(frappe.get_all("Saved Signature", pluck="name")) - _created["saved_signatures"]:
-		frappe.delete_doc("Saved Signature", name, force=True, ignore_permissions=True)
+	before = _created["saved_signatures"]
+	for s in frappe.get_all("Saved Signature", ["name", "signature"]):
+		if s.name not in before:
+			frappe.delete_doc("Saved Signature", s.name, force=True, ignore_permissions=True)
+		elif before[s.name] and (api._read_file(s.signature) if s.signature else None) != before[s.name]:
+			api._save_signature(s.name, before[s.name])  # put theirs back
 	if _created["supplier"]:
 		frappe.delete_doc("Supplier", _created["supplier"], force=True, ignore_permissions=True)
 	frappe.db.commit()
@@ -1148,3 +1159,77 @@ def test_reminder_schedule():
 	finally:
 		frappe.db.set_single_value("Signature Settings", "disable_reminders", original or 0)
 		frappe.db.commit()
+
+def test_get_signers():
+	print("\na doctype names its own signers with get_signers()")
+	from frappe.desk.doctype.todo.todo import ToDo
+
+	ref = _ref()
+	get = lambda: api.get_default_signers("ToDo", ref)
+	_log(get() == {"signers": [], "warnings": []}, "no get_signers(): nothing pre-filled")
+
+	admin = frappe.db.get_value("User", "Administrator", ["full_name", "email"], as_dict=True)
+	no_email = frappe.db.get_value("Customer", {"email_id": ("is", "not set")}, "name")
+	ToDo.get_signers = lambda self: [
+		{"signer_type": "Email", "signer_name": "First Out", "signer_email": "first-out@example.com"},
+		{"signer_type": "User", "signer_reference": "Administrator"},
+		{"signer_type": "Email", "signer_email": "FIRST-OUT@example.com"},  # same person again
+		{"signer_type": "Customer", "signer_reference": no_email},
+		{"signer_type": "Robot", "signer_reference": "x"},
+		{"signer_reference": "Administrator"},  # no type
+	]
+	try:
+		res = get()
+		got = [(s["signer_type"], s["signer_name"], s["signer_email"]) for s in res["signers"]]
+		_log(
+			got == [("Email", "First Out", "first-out@example.com"), ("User", admin.full_name, admin.email)],
+			f"signers in the order given, details from the record, got {got}",
+		)
+		_log(res["signers"][1]["signer_reference"] == "Administrator", "the record is kept as the reference")
+		warnings = " ".join(res["warnings"])
+		_log("more than once" in warnings, "a duplicate email is added once, with a warning")
+		_log(warnings.count("Invalid signer type") == 2, "an unknown or missing type is a warning, not a failure")
+		if no_email:
+			_log("support ticket" in warnings, "a record with no email is a warning telling them to raise a ticket")
+		_log(not frappe.message_log, "nothing pops up besides the warnings")
+
+		# What get_signers() returns goes straight into a request once boxes are placed.
+		req = _create([{**s, "sign_boxes": [BOX]} for s in res["signers"]], sign_in_order=1)
+		_log([s.signer_email for s in req.signers] == ["first-out@example.com", admin.email], "and can be sent as is")
+
+		def broken(self):
+			raise Exception("typo in get_signers")
+
+		ToDo.get_signers = broken
+		res = get()
+		_log(res["signers"] == [] and res["warnings"], "a broken get_signers(): a warning, the dialog still opens")
+		ToDo.get_signers = lambda self: {"signer_type": "User"}
+		_log(get()["signers"] == [] and get()["warnings"], "not a list: a warning")
+
+		ToDo.get_signers = lambda self: [{"signer_type": "Email", "signer_email": "ext@example.com"}]
+		frappe.db.set_value("Signable Document Type", "ToDo", "allow_external_signers", 0)
+		frappe.clear_document_cache("Signable Document Type", "ToDo")
+		try:
+			res = get()
+		finally:
+			frappe.db.set_value("Signable Document Type", "ToDo", "allow_external_signers", 1)
+			frappe.clear_document_cache("Signable Document Type", "ToDo")
+		_log(not res["signers"] and "Only User signers" in res["warnings"][0], "external signers off: a warning")
+	finally:
+		del ToDo.get_signers
+
+	if no_email:
+		contact = frappe.get_doc(
+			{
+				"doctype": "Contact",
+				"first_name": "Sign Test",
+				"email_ids": [{"email_id": "linked-contact@example.com", "is_primary": 1}],
+				"links": [{"link_doctype": "Customer", "link_name": no_email}],
+			}
+		).insert(ignore_permissions=True)
+		try:
+			email = api._signer_details("Customer", no_email)["signer_email"]
+			_log(email == "linked-contact@example.com", "a customer with no email uses its linked contact's")
+		finally:
+			frappe.delete_doc("Contact", contact.name, force=True, ignore_permissions=True)
+			frappe.db.commit()

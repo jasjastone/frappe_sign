@@ -287,6 +287,24 @@ frappe_sign.open_request_dialog = async function (frm, config, request_name) {
 		existing.signers.forEach((s) => signers.push({ ...s, color: COLORS[next_color++ % COLORS.length] }));
 		in_order = existing.sign_in_order;
 		active = signers[0] || null;
+	} else if (!standalone) {
+		// A doctype can name its own signers with get_signers() on its controller.
+		const defaults = await frappe.xcall("frappe_sign.frappe_sign.api.get_default_signers", {
+			reference_doctype: frm.doctype,
+			reference_name: frm.doc.name,
+		});
+		defaults.signers.forEach((s) =>
+			signers.push({ ...s, sign_boxes: [], color: COLORS[next_color++ % COLORS.length] })
+		);
+		in_order = signers.length > 1 ? 1 : 0; // their list order is the signing order
+		active = signers[0] || null;
+		if (defaults.warnings.length) {
+			frappe.msgprint({
+				title: __("Some default signers were left out"),
+				indicator: "orange",
+				message: defaults.warnings.map((w) => `<p>${frappe.utils.escape_html(w)}</p>`).join(""),
+			});
+		}
 	}
 
 	const d = new frappe.ui.Dialog({

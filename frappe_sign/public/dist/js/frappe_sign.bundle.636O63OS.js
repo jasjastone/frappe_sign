@@ -513,6 +513,23 @@
       existing.signers.forEach((s) => signers.push(__spreadProps(__spreadValues({}, s), { color: COLORS[next_color++ % COLORS.length] })));
       in_order = existing.sign_in_order;
       active = signers[0] || null;
+    } else if (!standalone) {
+      const defaults = await frappe.xcall("frappe_sign.frappe_sign.api.get_default_signers", {
+        reference_doctype: frm.doctype,
+        reference_name: frm.doc.name
+      });
+      defaults.signers.forEach(
+        (s) => signers.push(__spreadProps(__spreadValues({}, s), { sign_boxes: [], color: COLORS[next_color++ % COLORS.length] }))
+      );
+      in_order = signers.length > 1 ? 1 : 0;
+      active = signers[0] || null;
+      if (defaults.warnings.length) {
+        frappe.msgprint({
+          title: __("Some default signers were left out"),
+          indicator: "orange",
+          message: defaults.warnings.map((w) => `<p>${frappe.utils.escape_html(w)}</p>`).join("")
+        });
+      }
     }
     const d = new frappe.ui.Dialog({
       title: sending ? __("Request Signature") : __("Update Signature Request {0}", [request_name]),
@@ -845,4 +862,4 @@
     }
   };
 })();
-//# sourceMappingURL=frappe_sign.bundle.RXDK2STO.js.map
+//# sourceMappingURL=frappe_sign.bundle.636O63OS.js.map
