@@ -784,6 +784,21 @@ def get_dashboard_data():
 	return {"waiting": waiting, "sent": sent}
 
 
+@frappe.whitelist()
+def count_waiting_for_me(filters=None):
+	"""Number Card: requests where it's the session user's turn to sign."""
+	return frappe.db.sql(
+		f"""
+		select count(*)
+		from `tabSignature Request Signer` s
+		join `tabSignature Request` r on r.name = s.parent
+		where s.signer_type = 'User' and s.signer_reference = %s and {IN_TURN_SQL}
+			and (s.token_expiry is null or s.token_expiry > %s)
+	""",
+		(frappe.session.user, now_datetime()),
+	)[0][0]
+
+
 # ---------------------------------------------------------------------------
 # Section 8 — notifications (plain frappe.sendmail, D16)
 # ---------------------------------------------------------------------------
