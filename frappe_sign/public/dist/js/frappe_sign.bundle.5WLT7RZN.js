@@ -499,6 +499,7 @@
     });
   };
   frappe_sign.open_request_dialog = async function(frm, config, request_name) {
+    var _a;
     await frappe_sign.load_libs();
     const standalone = frm.doctype === "Signature Request";
     const sending = !request_name || standalone && frm.doc.status === "Draft";
@@ -521,9 +522,9 @@
         reference_name: frm.doc.name
       }).catch(() => ({ signers: [], warnings: [] }));
       defaults.signers.forEach(
-        (s) => signers.push(__spreadProps(__spreadValues({}, s), { sign_boxes: [], color: COLORS[next_color++ % COLORS.length] }))
+        (s) => signers.push(__spreadProps(__spreadValues({ sign_boxes: [] }, s), { color: COLORS[next_color++ % COLORS.length] }))
       );
-      in_order = signers.length > 1 ? 1 : 0;
+      in_order = (_a = defaults.sign_in_order) != null ? _a : signers.length > 1 ? 1 : 0;
       active = signers[0] || null;
       if (defaults.warnings.length) {
         frappe.msgprint({
@@ -874,4 +875,4 @@
     }
   };
 })();
-//# sourceMappingURL=frappe_sign.bundle.CGV4PBVH.js.map
+//# sourceMappingURL=frappe_sign.bundle.5WLT7RZN.js.map
