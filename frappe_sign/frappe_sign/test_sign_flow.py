@@ -787,6 +787,11 @@ def test_locked_while_out_for_signature():
 	req.reload()
 	_log(req.status == "Withdrawn", "withdrawn")
 	_log(not frappe.db.get_value("ToDo", ref, "signature_status"), "list status back to plain draft")
+	again = api.get_default_signers("ToDo", ref)["signers"]
+	_log(
+		[s["signer_email"] for s in again] == ["one@example.com", "two@example.com"] and again[0]["sign_boxes"],
+		"requesting again pre-fills the withdrawn request's signers and boxes",
+	)
 	frappe.set_user("Guest")
 	_throws(lambda: api.get_signing_context(_token(req, 1)), "the remaining signer's link is dead")
 	frappe.set_user("Administrator")

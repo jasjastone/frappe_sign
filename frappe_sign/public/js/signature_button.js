@@ -299,9 +299,10 @@ frappe_sign.open_request_dialog = async function (frm, config, request_name) {
 			})
 			.catch(() => ({ signers: [], warnings: [] }));
 		defaults.signers.forEach((s) =>
-			signers.push({ ...s, sign_boxes: [], color: COLORS[next_color++ % COLORS.length] })
+			signers.push({ sign_boxes: [], ...s, color: COLORS[next_color++ % COLORS.length] })
 		);
-		in_order = signers.length > 1 ? 1 : 0; // their list order is the signing order
+		// A withdrawn/declined request brings its own order; get_signers() lists are in signing order.
+		in_order = defaults.sign_in_order ?? (signers.length > 1 ? 1 : 0);
 		active = signers[0] || null;
 		if (defaults.warnings.length) {
 			frappe.msgprint({

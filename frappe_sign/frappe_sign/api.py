@@ -374,6 +374,26 @@ def get_default_signers(reference_doctype, reference_name):
 	if not frappe.has_permission(reference_doctype, "write", reference_name):
 		raise frappe.PermissionError
 	config = _get_signable_config(reference_doctype)
+
+	# Re-requesting after a withdraw or decline: start from that request's signers
+	# and boxes (the server re-reads each signer's details when it's sent).
+	previous = _latest_request(reference_doctype, reference_name)
+	if previous and previous.status in ("Withdrawn", "Rejected"):
+		return {
+			"signers": [
+				{
+					"signer_type": s.signer_type,
+					"signer_reference": s.signer_reference,
+					"signer_name": s.signer_name,
+					"signer_email": s.signer_email,
+					"sign_boxes": frappe.parse_json(s.sign_boxes) or [],
+				}
+				for s in previous.signers
+			],
+			"sign_in_order": previous.sign_in_order,
+			"warnings": [],
+		}
+
 	doc = frappe.get_doc(reference_doctype, reference_name)
 	if not hasattr(doc, "get_signers"):
 		return {"signers": [], "warnings": []}
