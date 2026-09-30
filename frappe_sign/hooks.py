@@ -1,5 +1,5 @@
 app_name = "frappe_sign"
-app_title = "Sign"
+app_title = "E Signature"
 app_publisher = "jasjastone"
 app_description = "Embedded e-signature system for ERPNext"
 app_email = "jasjastone@gmail.com"
