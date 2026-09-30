@@ -384,18 +384,29 @@ frappe_sign.open_request_dialog = async function (frm, config, request_name) {
 		if (d.get_value("signer_reference") === ref) d.set_values(details); // still the one picked
 	}
 
-	function add_signer() {
+	async function add_signer() {
 		const row = {
 			signer_type: d.get_value("signer_type"),
 			signer_reference: d.get_value("signer_reference") || null,
 			signer_name: d.get_value("signer_name"),
 			signer_email: d.get_value("signer_email"),
-			color: COLORS[next_color++ % COLORS.length],
+			color: COLORS[next_color % COLORS.length],
 			sign_boxes: [], // [{ page, x, y, w, h }] in PDF points — one per place they sign
 		};
 		if (row.signer_type !== "Email" && !row.signer_reference) {
 			frappe.msgprint(__("Pick the {0} who should sign.", [__(row.signer_type)]));
 			return;
+		}
+		if (row.signer_type !== "Email") {
+			// Clicking Add can beat prefill_from_reference (the click's blur even restarts
+			// it), so fetch the record's details here rather than read half-filled fields.
+			Object.assign(
+				row,
+				await frappe.xcall("frappe_sign.frappe_sign.api.get_signer_details", {
+					signer_type: row.signer_type,
+					reference: row.signer_reference,
+				})
+			);
 		}
 		if (!row.signer_name || !row.signer_email) {
 			frappe.msgprint(__("Every signer needs a name and an email."));
@@ -407,6 +418,7 @@ frappe_sign.open_request_dialog = async function (frm, config, request_name) {
 			frappe.msgprint(__("{0} is already a signer. To have them sign in more places, select them and click the document again.", [frappe.utils.escape_html(twin.signer_name)]));
 			return;
 		}
+		next_color++;
 		signers.push(row);
 		d.set_value("signer_reference", "");
 		d.set_value("signer_name", "");
