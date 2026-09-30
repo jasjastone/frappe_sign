@@ -371,6 +371,16 @@ def test_other_users_token_is_refused():
 	token = _token(req)
 	_log(frappe.session.user == "Administrator", f"session is Administrator, token belongs to {other}")
 	_throws(lambda: api.get_signing_context(token), "Administrator cannot open another user's token")
+	try:
+		api.get_signing_context(token)
+	except frappe.PermissionError as e:
+		signer = frappe.get_doc("Signature Request", req.name).signers[0]
+		msg = str(e)
+		frappe.clear_messages()
+		_log(
+			signer.signer_name in msg and signer.signer_email in msg and "Administrator" in msg and "log out" in msg,
+			"the refusal says who the link is for and what to do",
+		)
 	_throws(lambda: api.submit_signature(token, PNG), "Administrator cannot sign for another user")
 
 
@@ -629,14 +639,23 @@ def test_record_is_submitted_when_signed():
 		frappe.get_meta = get_meta
 		try:
 			frappe.set_user("Guest")
+			# Stands in for the signer's web session, which is saved back after the request.
+			session = frappe.local.session
+			session.sid, session.data = "signer-sid", frappe._dict(user_type="System User", csrf_token="t")
 			api.submit_signature(_token(req), PNG)
+			sessions.append((session.user, session.sid, dict(session.data)))
 		finally:
 			frappe.get_doc, frappe.get_meta = real_get_doc, real_get_meta
 			frappe.set_user("Administrator")
 		return frappe.get_doc("Signature Request", req.name)
 
+	sessions = []
 	sign_new_request()
 	_log(events == [("submit", "Administrator", True)], f"submitted as the requester, got {events}")
+	_log(
+		sessions[-1] == ("Guest", "signer-sid", {"user_type": "System User", "csrf_token": "t"}),
+		f"the signer's session is left exactly as it was, got {sessions[-1]}",
+	)
 
 	events.clear()
 	stub["doc"] = Stub(fail=True)

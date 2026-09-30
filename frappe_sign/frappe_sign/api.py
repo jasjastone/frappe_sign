@@ -540,7 +540,19 @@ def _resolve_signer(key, lock=False):
 	# D10 — only User signers get a session check; everyone else is token-only.
 	if signer.signer_type == "User" and frappe.session.user != "Guest":
 		if frappe.session.user != signer.signer_reference:
-			frappe.throw(_("This document is not addressed to you."), frappe.PermissionError)
+			frappe.throw(
+				_(
+					"This signing link is for {0} ({1}), but you are logged in as {2} ({3}). "
+					"Only {0} can sign it: log out, or open the link in a private window, then log in as {1}."
+				).format(
+					escape_html(signer.signer_name),
+					escape_html(signer.signer_email),
+					escape_html(frappe.utils.get_fullname(frappe.session.user)),
+					escape_html(frappe.session.user),
+				),
+				frappe.PermissionError,
+				title=_("Signing link for {0}").format(escape_html(signer.signer_name)),
+			)
 
 	return request, signer
 
@@ -661,7 +673,11 @@ def _submit_reference(request):
 	if not latest or latest.name != request.name:
 		return  # an older request finishing late never submits
 
-	user = frappe.session.user
+	# frappe.set_user also blanks the session's sid and data (user type, CSRF
+	# token...), and in a web request that session is saved back at the end:
+	# restoring only the user name left a logged-in signer locked out (403).
+	session = frappe.local.session
+	user, sid, data = session.user, session.sid, session.data
 	try:
 		frappe.set_user(request.created_by_user or "Administrator")
 		doc = frappe.get_doc(dt, dn)
@@ -680,6 +696,7 @@ def _submit_reference(request):
 		frappe.db.commit()
 	finally:
 		frappe.set_user(user)
+		session.sid, session.data = sid, data
 
 
 def _drop_file(file_url, attached_to_name):
@@ -782,6 +799,21 @@ def get_dashboard_data():
 	)
 
 	return {"waiting": waiting, "sent": sent}
+
+
+@frappe.whitelist()
+def count_waiting_for_me(filters=None):
+	"""Number Card: requests where it's the session user's turn to sign."""
+	return frappe.db.sql(
+		f"""
+		select count(*)
+		from `tabSignature Request Signer` s
+		join `tabSignature Request` r on r.name = s.parent
+		where s.signer_type = 'User' and s.signer_reference = %s and {IN_TURN_SQL}
+			and (s.token_expiry is null or s.token_expiry > %s)
+	""",
+		(frappe.session.user, now_datetime()),
+	)[0][0]
 
 
 # ---------------------------------------------------------------------------

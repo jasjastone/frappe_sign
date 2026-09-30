@@ -1,0 +1,19 @@
+{
+ "color": "#2490EF",
+ "creation": "2026-09-25 00:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Number Card",
+ "idx": 0,
+ "is_public": 1,
+ "is_standard": 1,
+ "label": "Waiting for My Signature",
+ "method": "frappe_sign.frappe_sign.api.count_waiting_for_me",
+ "modified": "2026-09-25 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Frappe Sign",
+ "name": "Waiting for My Signature",
+ "owner": "Administrator",
+ "show_full_number": 0,
+ "show_percentage_stats": 0,
+ "type": "Custom"
+}
