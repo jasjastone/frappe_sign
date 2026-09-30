@@ -97,7 +97,14 @@
  "parent_page": "",
  "public": 1,
  "quick_lists": [],
- "roles": [],
+ "roles": [
+  {
+   "role": "Sign User"
+  },
+  {
+   "role": "System Manager"
+  }
+ ],
  "sequence_id": 40.0,
  "shortcuts": [
   {

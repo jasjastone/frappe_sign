@@ -13,12 +13,15 @@ add_to_apps_screen = [
 		"logo": "/assets/frappe_sign/images/sign.svg",
 		"title": app_title,
 		"route": "/app/e-signature",
+		"has_permission": "frappe_sign.frappe_sign.api.has_app_access",
 	}
 ]
 
 # Includes in <head>
 # ------------------
 # Bundles get a content hash per build, so browsers never run a stale copy.
+after_install = "frappe_sign.patches.create_sign_user_role.execute"
+
 app_include_js = "frappe_sign.bundle.js"
 app_include_css = "sign.bundle.css"
 

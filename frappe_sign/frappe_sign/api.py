@@ -874,9 +874,22 @@ def _email_completed(request):
 # ---------------------------------------------------------------------------
 
 
+SIGN_ROLES = ("Sign User", "System Manager")
+
+
+def has_app_access():
+	"""Gate for the apps screen and the form buttons, so only users given the
+	Sign User role (partial rollout) see the app at all."""
+	return frappe.session.user == "Administrator" or bool(set(SIGN_ROLES) & set(frappe.get_roles()))
+
+
 def boot_session(bootinfo):
 	"""Every enabled Signable Document Type, so a form knows on its first paint
 	whether Submit must give way to signing — no request, no flash of Submit."""
+	if not has_app_access():
+		# ponytail: hides buttons only; check_signed_before_submit still enforces server-side
+		bootinfo.frappe_sign = {}
+		return
 	bootinfo.frappe_sign = {
 		row.document_type: row
 		for row in frappe.get_all(
