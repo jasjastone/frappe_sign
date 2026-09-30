@@ -92,7 +92,6 @@ def run():
 		test_context_does_not_leak_siblings()
 		test_no_signature_image_is_persisted()
 		test_signature_is_remembered_per_email()
-		test_audit_line_stays_on_page()
 		test_one_signature_fills_every_box()
 		test_rejected_request_is_closed()
 		test_signers_panel()
@@ -473,31 +472,6 @@ def _png(w, h):
 	return pix.tobytes("png")
 
 
-def test_audit_line_stays_on_page():
-	print("\naudit line stays on the page when the box is at the bottom")
-	import fitz
-
-	from frappe_sign.frappe_sign.utils import file_url_to_path
-
-	req = _create([_signer("Email", None, "Bottom Signer", "bottom@example.com")])
-	with fitz.open(file_url_to_path(req.source_pdf)) as doc:
-		height = doc[0].rect.height
-	frappe.db.set_value(
-		"Signature Request Signer",
-		req.signers[0].name,
-		"sign_boxes",
-		frappe.as_json([{**BOX, "y": height - 45, "h": 40}]),
-	)
-	frappe.set_user("Guest")
-	api.submit_signature(_token(req), PNG)
-	frappe.set_user("Administrator")
-	req.reload()
-
-	with fitz.open(file_url_to_path(req.signed_pdf)) as doc:
-		hits = doc[0].search_for("Signed by Bottom Signer")
-	_log(bool(hits) and all(0 <= r.y0 and r.y1 <= height for r in hits), "audit text found inside the page")
-
-
 def test_one_signature_fills_every_box():
 	print("\none signer, several places: one signature fills every box")
 	import fitz
@@ -518,9 +492,11 @@ def test_one_signature_fills_every_box():
 		before = len(doc[0].get_image_info())
 	with fitz.open(file_url_to_path(req.signed_pdf)) as doc:
 		added = len(doc[0].get_image_info()) - before
-		audits = doc[0].search_for("Signed by Many Places")
+		audits = doc[0].search_for("Signed by")
 	_log(added == 3, f"signature stamped three times, got {added}")
-	_log(len(audits) == 3, f"an audit line under each box, got {len(audits)}")
+	_log(not audits, "only the signature is stamped: no audit text on the document")
+	signer = frappe.get_doc("Signature Request", req.name).signers[0]
+	_log(bool(signer.signed_on and signer.signed_ip), "signed on / IP are kept on the signer row instead")
 
 
 def test_rejected_request_is_closed():

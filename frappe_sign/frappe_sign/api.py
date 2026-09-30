@@ -651,9 +651,7 @@ def submit_signature(key, image_base64, is_upload=False):
 	signed_ip = _client_ip()
 
 	previous_signed_pdf = request.signed_pdf
-	merged = merge_signature(
-		request.signed_pdf or request.source_pdf, image_bytes, signer, signed_on, signed_ip
-	)
+	merged = merge_signature(request.signed_pdf or request.source_pdf, image_bytes, signer)
 	signed_url = attach_pdf(merged, f"{request.name}-signed.pdf", request.name, "signed_pdf")
 
 	signer.db_set({"status": "Signed", "signed_on": signed_on, "signed_ip": signed_ip})

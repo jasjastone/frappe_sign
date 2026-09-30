@@ -150,8 +150,10 @@ def decode_image(image_base64):
 	return base64.b64decode(image_base64)
 
 
-def merge_signature(current_pdf_url, signature_image_bytes, signer, signed_on, signed_ip):
-	"""6.3 — stamp the signature image + audit line into each of the signer's boxes.
+def merge_signature(current_pdf_url, signature_image_bytes, signer):
+	"""6.3 — stamp the signature image into each of the signer's boxes. Only the
+	image: who signed, when and from where are kept on the signer row
+	(signed_on, signed_ip), not printed on the document.
 
 	`signature_image_bytes` comes straight from the API payload and is never
 	read from storage (D9). Returns the new PDF as bytes.
@@ -159,16 +161,11 @@ def merge_signature(current_pdf_url, signature_image_bytes, signer, signed_on, s
 	import fitz
 
 	doc = fitz.open(file_url_to_path(current_pdf_url))
-	audit = f"Signed by {signer.signer_name} on {signed_on.strftime('%Y-%m-%d %H:%M')} (IP: {signed_ip})"
 	try:
 		# The same signature goes into every box this signer was given.
 		for box in frappe.parse_json(signer.sign_boxes) or []:
-			page = doc[int(box["page"])]
 			rect = fitz.Rect(box["x"], box["y"], box["x"] + box["w"], box["y"] + box["h"])
-			page.insert_image(rect, stream=signature_image_bytes)
-			# Below the box, unless that runs off the page — then above it.
-			text_y = rect.y1 + 12 if rect.y1 + 12 <= page.rect.height else rect.y0 - 4
-			page.insert_text((rect.x0, text_y), audit, fontsize=8)
+			doc[int(box["page"])].insert_image(rect, stream=signature_image_bytes)
 		out = io.BytesIO()
 		doc.save(out)
 		return out.getvalue()
