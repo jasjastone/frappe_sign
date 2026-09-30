@@ -587,15 +587,20 @@
       d.set_values({ signer_reference: "", signer_name: "", signer_email: "" });
     }
     on_type_change();
+    let prefilled = null;
     async function prefill_from_reference() {
       const type = d.get_value("signer_type");
       const ref = d.get_value("signer_reference");
-      d.set_values({ signer_name: "", signer_email: "" });
-      if (!ref || type === "Email")
+      if (`${type}:${ref}` === prefilled)
         return;
-      const details = await frappe.xcall("frappe_sign.frappe_sign.api.get_signer_details", {
-        signer_type: type,
-        reference: ref
+      prefilled = `${type}:${ref}`;
+      if (!ref || type === "Email") {
+        d.set_values({ signer_name: "", signer_email: "" });
+        return;
+      }
+      const details = await frappe.xcall("frappe_sign.frappe_sign.api.get_signer_details", { signer_type: type, reference: ref }).catch(() => {
+        prefilled = null;
+        return { signer_name: "", signer_email: "" };
       });
       if (d.get_value("signer_reference") === ref)
         d.set_values(details);
@@ -875,4 +880,4 @@
     }
   };
 })();
-//# sourceMappingURL=frappe_sign.bundle.5WLT7RZN.js.map
+//# sourceMappingURL=frappe_sign.bundle.SIA4KMGC.js.map

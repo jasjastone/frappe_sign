@@ -372,16 +372,26 @@ frappe_sign.open_request_dialog = async function (frm, config, request_name) {
 	}
 	on_type_change();
 
+	// The link re-fires onchange when it blurs, i.e. when Add Signer is clicked. Blanking
+	// the read-only name/email then hides them, the button jumps up and the click is lost,
+	// so skip a signer already fetched and only overwrite (never blank) while fetching.
+	let prefilled = null;
 	async function prefill_from_reference() {
 		const type = d.get_value("signer_type");
 		const ref = d.get_value("signer_reference");
-		d.set_values({ signer_name: "", signer_email: "" });
-		if (!ref || type === "Email") return;
+		if (`${type}:${ref}` === prefilled) return;
+		prefilled = `${type}:${ref}`;
+		if (!ref || type === "Email") {
+			d.set_values({ signer_name: "", signer_email: "" });
+			return;
+		}
 		// No email on the record: the server's message says to raise a ticket for it.
-		const details = await frappe.xcall("frappe_sign.frappe_sign.api.get_signer_details", {
-			signer_type: type,
-			reference: ref,
-		});
+		const details = await frappe
+			.xcall("frappe_sign.frappe_sign.api.get_signer_details", { signer_type: type, reference: ref })
+			.catch(() => {
+				prefilled = null;
+				return { signer_name: "", signer_email: "" };
+			});
 		if (d.get_value("signer_reference") === ref) d.set_values(details); // still the one picked
 	}
 
