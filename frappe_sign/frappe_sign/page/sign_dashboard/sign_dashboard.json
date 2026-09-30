@@ -12,7 +12,10 @@
  "page_name": "sign-dashboard",
  "roles": [
   {
-   "role": "All"
+   "role": "Sign User"
+  },
+  {
+   "role": "System Manager"
   }
  ],
  "script": null,
