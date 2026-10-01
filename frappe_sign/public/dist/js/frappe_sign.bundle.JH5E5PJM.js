@@ -71,7 +71,10 @@
       return data.message;
     }
     frappe_sign.call = call;
-    function trimmed_png(source, w, h) {
+    function trimmed_png(source, w, h, max_px) {
+      const fit = Math.min(1, max_px / Math.max(w, h));
+      w = Math.max(1, Math.round(w * fit));
+      h = Math.max(1, Math.round(h * fit));
       const c = document.createElement("canvas");
       c.width = w;
       c.height = h;
@@ -209,7 +212,7 @@
         if (!pad || pad.isEmpty())
           return null;
         const c = pad.canvas;
-        return trimmed_png(c, c.width, c.height);
+        return trimmed_png(c, c.width, c.height, ctx.max_signature_px);
       }
       function set_mode(next) {
         mode = next;
@@ -247,7 +250,7 @@
         reader.onload = async () => {
           try {
             const img = await load_image(reader.result);
-            uploaded = trimmed_png(img, img.naturalWidth, img.naturalHeight) || reader.result;
+            uploaded = trimmed_png(img, img.naturalWidth, img.naturalHeight, ctx.max_signature_px) || reader.result;
             $c.find(".sign-upload-preview").attr("src", uploaded).prop("hidden", false);
             set_image(uploaded);
           } catch (err) {
@@ -339,13 +342,17 @@
   };
   frappe.ui.form.on("*", {
     refresh(frm) {
+      frm.layout.wrapper.find(".frappe-sign-status-section").remove();
       const config = frappe_sign.signable_config(frm.doctype);
       if (!config || frm.is_new())
         return;
+      const name = frm.doc.name;
       frappe.xcall("frappe_sign.frappe_sign.api.get_signature_status", {
         reference_doctype: frm.doctype,
-        reference_name: frm.doc.name
+        reference_name: name
       }).then((status) => {
+        if (frm.doc.name !== name)
+          return;
         if (status)
           frappe_sign.render_signers(frm, status);
         frappe_sign.set_sign_actions(frm, config, status);
@@ -880,4 +887,4 @@
     }
   };
 })();
-//# sourceMappingURL=frappe_sign.bundle.SIA4KMGC.js.map
+//# sourceMappingURL=frappe_sign.bundle.JH5E5PJM.js.map

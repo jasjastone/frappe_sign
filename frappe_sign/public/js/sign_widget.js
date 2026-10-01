@@ -71,8 +71,15 @@ window.frappe_sign = window.frappe_sign || {};
 	}
 	frappe_sign.call = call;
 
-	/** Draw an image source onto a canvas, crop to the ink, return a PNG data URL (or null if blank). */
-	function trimmed_png(source, w, h) {
+	/**
+	 * Draw an image source onto a canvas, crop to the ink, return a PNG data URL (or null if blank).
+	 * Scaled to at most `max_px` on its longest side first (Signature Settings, sent with the
+	 * signing context): a phone photo at full size made uploads and signed PDFs tens of MB.
+	 */
+	function trimmed_png(source, w, h, max_px) {
+		const fit = Math.min(1, max_px / Math.max(w, h));
+		w = Math.max(1, Math.round(w * fit));
+		h = Math.max(1, Math.round(h * fit));
 		const c = document.createElement("canvas");
 		c.width = w;
 		c.height = h;
@@ -232,7 +239,7 @@ window.frappe_sign = window.frappe_sign || {};
 		function pad_image() {
 			if (!pad || pad.isEmpty()) return null;
 			const c = pad.canvas;
-			return trimmed_png(c, c.width, c.height);
+			return trimmed_png(c, c.width, c.height, ctx.max_signature_px);
 		}
 
 		function set_mode(next) {
@@ -275,7 +282,7 @@ window.frappe_sign = window.frappe_sign || {};
 				try {
 					// Through a canvas: always PNG, and cropped like a drawn one.
 					const img = await load_image(reader.result);
-					uploaded = trimmed_png(img, img.naturalWidth, img.naturalHeight) || reader.result;
+					uploaded = trimmed_png(img, img.naturalWidth, img.naturalHeight, ctx.max_signature_px) || reader.result;
 					$c.find(".sign-upload-preview").attr("src", uploaded).prop("hidden", false);
 					set_image(uploaded);
 				} catch (err) {

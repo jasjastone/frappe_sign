@@ -15,9 +15,11 @@ from frappe_sign.frappe_sign.utils import (
 	decode_image,
 	file_url_to_path,
 	merge_pdf_files,
+	max_signature_px,
 	merge_signature,
 	render_source_pdf,
 	save_private_file,
+	shrink_signature,
 )
 
 SIGNER_TYPES = ("User", "Employee", "Customer", "Supplier", "Email")
@@ -596,6 +598,7 @@ def get_signing_context(key):
 		"signer_type": signer.signer_type,
 		"sign_boxes": frappe.parse_json(signer.sign_boxes) or [],
 		"saved_signature": _saved_signature_data_url(signer.signer_email),
+		"max_signature_px": max_signature_px(),
 	}
 
 	return context
@@ -646,7 +649,7 @@ def submit_signature(key, image_base64, is_upload=False):
 	if not image_base64:
 		frappe.throw(_("A signature is required."))
 
-	image_bytes = decode_image(image_base64)
+	image_bytes = shrink_signature(decode_image(image_base64))
 	signed_on = now_datetime()
 	signed_ip = _client_ip()
 

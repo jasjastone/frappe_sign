@@ -5,7 +5,8 @@
  "engine": "InnoDB",
  "field_order": [
   "token_validity_days",
-  "disable_reminders"
+  "disable_reminders",
+  "max_signature_px"
  ],
  "fields": [
   {
@@ -21,11 +22,18 @@
    "fieldtype": "Check",
    "label": "Disable Reminders",
    "description": "Signers who haven't signed are reminded 2 hours, 8 hours, 1 day, 2 days and 4 days after the document reaches them. Tick to stop sending reminders."
+  },
+  {
+   "default": "1000",
+   "fieldname": "max_signature_px",
+   "fieldtype": "Int",
+   "label": "Max Signature Size (px)",
+   "description": "Longest side of a signature image, drawn or uploaded, before it is stamped into the PDF and remembered. Larger only makes uploads and signed PDFs heavier. At least 200."
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-09-22 15:00:00.000000",
+ "modified": "2026-10-01 14:00:00.000000",
  "modified_by": "Administrator",
  "module": "Frappe Sign",
  "name": "Signature Settings",

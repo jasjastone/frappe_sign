@@ -51,7 +51,10 @@
       return data.message;
     }
     frappe_sign.call = call;
-    function trimmed_png(source, w, h) {
+    function trimmed_png(source, w, h, max_px) {
+      const fit = Math.min(1, max_px / Math.max(w, h));
+      w = Math.max(1, Math.round(w * fit));
+      h = Math.max(1, Math.round(h * fit));
       const c = document.createElement("canvas");
       c.width = w;
       c.height = h;
@@ -189,7 +192,7 @@
         if (!pad || pad.isEmpty())
           return null;
         const c = pad.canvas;
-        return trimmed_png(c, c.width, c.height);
+        return trimmed_png(c, c.width, c.height, ctx.max_signature_px);
       }
       function set_mode(next) {
         mode = next;
@@ -227,7 +230,7 @@
         reader.onload = async () => {
           try {
             const img = await load_image(reader.result);
-            uploaded = trimmed_png(img, img.naturalWidth, img.naturalHeight) || reader.result;
+            uploaded = trimmed_png(img, img.naturalWidth, img.naturalHeight, ctx.max_signature_px) || reader.result;
             $c.find(".sign-upload-preview").attr("src", uploaded).prop("hidden", false);
             set_image(uploaded);
           } catch (err) {
@@ -290,4 +293,4 @@
     };
   })();
 })();
-//# sourceMappingURL=sign_page.bundle.SDSJZMMQ.js.map
+//# sourceMappingURL=sign_page.bundle.CQCN6ANC.js.map
