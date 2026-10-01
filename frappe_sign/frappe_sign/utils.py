@@ -150,6 +150,28 @@ def decode_image(image_base64):
 	return base64.b64decode(image_base64)
 
 
+def max_signature_px():
+	"""Longest side of a stored signature (Signature Settings). A box is a few
+	inches wide; a phone photo at full size made a signed PDF tens of MB.
+	The browser gets it with the signing context, so this is the one source."""
+	return frappe.utils.cint(frappe.db.get_single_value("Signature Settings", "max_signature_px")) or 1000
+
+
+def shrink_signature(image_bytes):
+	"""The signature as a PNG no larger than max_signature_px() on its longest side.
+	Done here too, not only in the browser: the API takes whatever is posted."""
+	import fitz
+
+	try:
+		pix = fitz.Pixmap(image_bytes)
+	except Exception:
+		frappe.throw(frappe._("The signature must be an image."))
+	scale = max_signature_px() / max(pix.width, pix.height)
+	if scale >= 1:
+		return image_bytes  # already small: keep it byte for byte (the saved one is compared as-is)
+	return fitz.Pixmap(pix, max(1, round(pix.width * scale)), max(1, round(pix.height * scale)), None).tobytes("png")
+
+
 def merge_signature(current_pdf_url, signature_image_bytes, signer):
 	"""6.3 — stamp the signature image into each of the signer's boxes. Only the
 	image: who signed, when and from where are kept on the signer row
@@ -162,12 +184,20 @@ def merge_signature(current_pdf_url, signature_image_bytes, signer):
 
 	doc = fitz.open(file_url_to_path(current_pdf_url))
 	try:
-		# The same signature goes into every box this signer was given.
+		# The same signature goes into every box this signer was given — stored
+		# once, every other box points at that copy.
+		xref = 0
 		for box in frappe.parse_json(signer.sign_boxes) or []:
 			rect = fitz.Rect(box["x"], box["y"], box["x"] + box["w"], box["y"] + box["h"])
-			doc[int(box["page"])].insert_image(rect, stream=signature_image_bytes)
+			page = doc[int(box["page"])]
+			if xref:
+				page.insert_image(rect, xref=xref)
+			else:
+				xref = page.insert_image(rect, stream=signature_image_bytes)
 		out = io.BytesIO()
-		doc.save(out)
+		# PyMuPDF stores an inserted image's pixels uncompressed unless told to
+		# deflate (a 1800x1200 signature was ~7 MB). garbage=3 drops leftovers.
+		doc.save(out, garbage=3, deflate=True)
 		return out.getvalue()
 	finally:
 		doc.close()

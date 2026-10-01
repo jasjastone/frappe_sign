@@ -72,6 +72,7 @@ def _token(request, idx=0):
 def run():
 	frappe.set_user("Administrator")
 	frappe.flags.in_test = True
+	frappe.local.request_ip = "127.0.0.1"  # no web request from the CLI; signed_ip records it
 	# From the CLI there is no request to take the host from, and this site is
 	# named after a real public domain — point wkhtmltopdf at the local server.
 	frappe.local.conf.host_name = os.environ.get("SIGN_TEST_HOST") or frappe.local.conf.host_name or "http://localhost:8000"
@@ -113,6 +114,7 @@ def run():
 		test_reminder_schedule()
 		test_get_signers()
 		test_names_are_escaped()
+		test_signed_pdf_stays_small()
 		print("\nAll checks passed.")
 	finally:
 		teardown()
@@ -153,6 +155,8 @@ def setup():
 
 def teardown():
 	print("\nteardown")
+	frappe.set_user("Administrator")  # a check that failed mid-way may have left us as Guest
+	frappe.db.rollback()  # and its half-done writes
 	for name in _created["requests"]:
 		frappe.delete_doc("Signature Request", name, force=True, ignore_permissions=True)
 	if _created["config"]:
@@ -1268,3 +1272,54 @@ def test_names_are_escaped():
 	with _Outbox() as out:
 		api._email_rejected(req, frappe.get_doc("Signature Request", req.name).signers[0], "no")
 	_log("<img" not in out[0]["message"], "and in the email body")
+
+
+def test_signed_pdf_stays_small():
+	print("\na phone-photo signature doesn't bloat the signed PDF")
+	import random
+
+	import fitz
+
+	from frappe_sign.frappe_sign.utils import file_url_to_path, max_signature_px
+
+	MAX_SIGNATURE_PX = max_signature_px()
+	# 4032x3024 with noise, so it can't compress away: the size a phone camera gives.
+	pix = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 4032, 3024), True)
+	pix.set_rect(pix.irect, (255, 255, 255, 0))
+	rnd = random.Random(1)
+	for _ in range(4000):
+		x, y = rnd.randrange(4000), rnd.randrange(3000)
+		pix.set_rect(fitz.IRect(x, y, x + 30, y + 30), (rnd.randrange(255), 0, 0, 255))
+	photo = base64.b64encode(pix.tobytes("png")).decode()
+
+	email = "big-signature@example.com"
+	req = _create([_signer("Email", None, "Big", email, [BOX, {**BOX, "y": 300.0}])])
+	source = os.path.getsize(file_url_to_path(req.source_pdf))
+	frappe.set_user("Guest")
+	api.submit_signature(_token(req), photo)
+	frappe.set_user("Administrator")
+	req.reload()
+
+	signed = os.path.getsize(file_url_to_path(req.signed_pdf))
+	_log(signed < source + 1_000_000, f"signed PDF {signed // 1024} KB from a {source // 1024} KB source")
+	with fitz.open(file_url_to_path(req.signed_pdf)) as doc:
+		images = {i[0]: (i[2], i[3]) for i in doc[0].get_images(full=True)}
+		before = len(fitz.open(file_url_to_path(req.source_pdf))[0].get_images())
+		added = [v for v in images.values() if max(v) <= MAX_SIGNATURE_PX and v[0] / max(v[1], 1) > 1.2]
+		_log(len(images) - before == 1, "two boxes share one stored image")
+		_log(added and max(added[0]) <= MAX_SIGNATURE_PX, f"stored at most {MAX_SIGNATURE_PX}px, got {added}")
+	saved = fitz.Pixmap(api._read_file(frappe.db.get_value("Saved Signature", email, "signature")))
+	_log(max(saved.width, saved.height) <= MAX_SIGNATURE_PX, "the remembered signature is shrunk too")
+	original = frappe.db.get_single_value("Signature Settings", "max_signature_px")
+	try:
+		frappe.db.set_single_value("Signature Settings", "max_signature_px", 400)
+		ctx_px = api.get_signing_context(_token(_create([_signer("Email", None, "Px", "px@example.com")])))["max_signature_px"]
+		small = fitz.Pixmap(api.shrink_signature(pix.tobytes("png")))
+		_log(ctx_px == 400 and max(small.width, small.height) == 400, "the limit comes from Signature Settings, browser and server alike")
+		settings = frappe.get_doc("Signature Settings")
+		settings.max_signature_px = 50
+		_throws(settings.save, "a limit under 200 px is refused")
+	finally:
+		frappe.db.set_single_value("Signature Settings", "max_signature_px", original)
+	_throws(lambda: api.submit_signature(_token(_create([_signer("Email", None, "Junk", "junk@example.com")])),
+		base64.b64encode(b"not an image").decode()), "something that isn't an image is refused")

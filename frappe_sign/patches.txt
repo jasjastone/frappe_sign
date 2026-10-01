@@ -8,3 +8,4 @@ frappe_sign.patches.create_sign_user_role
 frappe_sign.patches.move_default_signature_to_saved_signature
 frappe_sign.patches.move_placement_to_sign_boxes
 frappe_sign.patches.add_signature_status_field
+frappe_sign.patches.set_max_signature_px
