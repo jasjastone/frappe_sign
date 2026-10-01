@@ -50,15 +50,20 @@ frappe.ui.form.Toolbar.prototype.get_action_status = function () {
 
 frappe.ui.form.on("*", {
 	refresh(frm) {
+		// The form (and its wrapper) is reused across records of a doctype, so drop
+		// the last record's Signers section before deciding whether this one has any.
+		frm.layout.wrapper.find(".frappe-sign-status-section").remove();
 		const config = frappe_sign.signable_config(frm.doctype);
 		if (!config || frm.is_new()) return;
 
+		const name = frm.doc.name;
 		frappe
 			.xcall("frappe_sign.frappe_sign.api.get_signature_status", {
 				reference_doctype: frm.doctype,
-				reference_name: frm.doc.name,
+				reference_name: name,
 			})
 			.then((status) => {
+				if (frm.doc.name !== name) return; // switched records while this was loading
 				if (status) frappe_sign.render_signers(frm, status);
 				frappe_sign.set_sign_actions(frm, config, status);
 			});
