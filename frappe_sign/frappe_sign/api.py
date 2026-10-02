@@ -38,10 +38,7 @@ def create_signature_request(reference_doctype, reference_name, signers, sign_in
 	Draft Signature Request with the file attached, and is sent from its form
 	with update_signature_request.
 	"""
-	if not frappe.has_permission(reference_doctype, "write", reference_name):
-		raise frappe.PermissionError(
-			_("You are not permitted to request a signature on {0} {1}").format(reference_doctype, reference_name)
-		)
+	_check_can_request(reference_doctype, reference_name)
 	config = _get_signable_config(reference_doctype)
 	signers = _clean_signers(signers, config)
 	pdf_bytes = render_source_pdf(reference_doctype, reference_name, config.default_print_format)
@@ -202,14 +199,25 @@ def _remind(request, signer):
 # ---------------------------------------------------------------------------
 
 
+def _check_can_request(doctype, name):
+	"""A Sign role, plus what the requester effectively does: submit the record
+	once everyone signs (submittable), or have it changed in their name (not)."""
+	_check_app_access()
+	ptype = "submit" if frappe.get_meta(doctype).is_submittable else "write"
+	if not (name and frappe.has_permission(doctype, ptype, name)):
+		raise frappe.PermissionError(
+			_("You need {0} permission on {1} {2} to request its signature.").format(_(ptype), _(doctype), name)
+		)
+
+
 def _check_can_manage(req):
-	"""Whoever may edit the record may manage its request; a standalone request
-	(uploaded PDF) belongs to whoever created it."""
+	"""Whoever may request a record's signature may manage its request; a
+	standalone request (uploaded PDF) is its creator's, or a Sign Manager's."""
 	if req.reference_doctype:
-		allowed = req.reference_name and frappe.has_permission(req.reference_doctype, "write", req.reference_name)
-	else:
-		allowed = frappe.has_permission("Signature Request", "write", doc=req)
-	if not allowed:
+		_check_can_request(req.reference_doctype, req.reference_name)
+		return
+	_check_app_access()
+	if not frappe.has_permission("Signature Request", "write", doc=req):
 		raise frappe.PermissionError
 
 
@@ -373,8 +381,7 @@ def get_default_signers(reference_doctype, reference_name):
 	record, unknown type, same email twice, empty reference) comes back as a
 	warning and the rest still load; so does a get_signers() that raises.
 	"""
-	if not frappe.has_permission(reference_doctype, "write", reference_name):
-		raise frappe.PermissionError
+	_check_can_request(reference_doctype, reference_name)
 	config = _get_signable_config(reference_doctype)
 
 	# Re-requesting after a withdraw or decline: start from that request's signers
@@ -683,8 +690,10 @@ def submit_signature(key, image_base64, is_upload=False):
 def _submit_reference(request):
 	"""Submit the signed record, if its Signable Document Type says to.
 
-	Runs as the requester, without permission checks — everyone signing is the
-	approval. A failure (validation, stock, accounting...) leaves the record in
+	Runs as the requester, with their own permissions: they could only send the
+	request holding submit on the record (_check_can_request), and if that was
+	taken away meanwhile the submit fails here. Signers need no permission at
+	all — everyone signing is the approval. A failure (validation, stock, accounting...) leaves the record in
 	draft with a comment saying why; the signed request is untouched.
 	"""
 	dt, dn = request.reference_doctype, request.reference_name
@@ -703,9 +712,7 @@ def _submit_reference(request):
 	user, sid, data = session.user, session.sid, session.data
 	try:
 		frappe.set_user(request.created_by_user or "Administrator")
-		doc = frappe.get_doc(dt, dn)
-		doc.flags.ignore_permissions = True
-		doc.submit()
+		frappe.get_doc(dt, dn).submit()
 		frappe.db.commit()
 	except Exception:
 		frappe.db.rollback()
@@ -897,13 +904,18 @@ def _email_completed(request):
 # ---------------------------------------------------------------------------
 
 
-SIGN_ROLES = ("Sign User", "System Manager")
+SIGN_ROLES = ("Sign User", "Sign Manager", "System Manager")
 
 
 def has_app_access():
-	"""Gate for the apps screen and the form buttons, so only users given the
-	Sign User role (partial rollout) see the app at all."""
+	"""Who may send and manage signature requests (enforced in _check_app_access)
+	and see the app at all. Anyone with a link can still sign."""
 	return frappe.session.user == "Administrator" or bool(set(SIGN_ROLES) & set(frappe.get_roles()))
+
+
+def _check_app_access():
+	if not has_app_access():
+		raise frappe.PermissionError(_("You need the Sign User role to send or manage signature requests."))
 
 
 def boot_session(bootinfo):
@@ -1151,8 +1163,7 @@ def preview_source_pdf(reference_doctype, reference_name):
 	Streamed rather than stored — a preview that is never sent should not leave
 	an orphaned File behind.
 	"""
-	if not frappe.has_permission(reference_doctype, "write", reference_name):
-		raise frappe.PermissionError
+	_check_can_request(reference_doctype, reference_name)
 
 	config = _get_signable_config(reference_doctype)
 	frappe.local.response.filename = f"{reference_name}.pdf"

@@ -44,3 +44,36 @@ class SignatureRequest(Document):
 
 		if self.source_pdf:
 			check_readable_pdf(self.source_pdf)
+
+
+# Who sees what. The role rows grant Sign User / Sign Manager every request;
+# these hooks narrow a Sign User down (a hook can deny, never grant).
+OVERSEERS = ("Sign Manager", "System Manager")
+
+
+def _oversees(user):
+	return user == "Administrator" or bool(set(OVERSEERS) & set(frappe.get_roles(user)))
+
+
+def has_permission(doc, ptype=None, user=None, debug=False):
+	"""A Sign User: their own requests, plus — read-only — a request on any record
+	they can read, so a colleague on the same Purchase Order sees how it was
+	signed. A standalone (uploaded PDF) request stays its creator's."""
+	user = user or frappe.session.user
+	if _oversees(user) or doc.is_new() or doc.owner == user:
+		return True
+	return bool(
+		ptype in ("read", "print")
+		and doc.reference_doctype
+		and doc.reference_name
+		and frappe.has_permission(doc.reference_doctype, "read", doc.reference_name, user=user)
+	)
+
+
+def get_permission_query_conditions(user=None):
+	"""The list: a Sign User's own requests only. Record readability can't be
+	checked per row in SQL; the record's Signers panel links the rest."""
+	user = user or frappe.session.user
+	if _oversees(user):
+		return ""
+	return f"`tabSignature Request`.`owner` = {frappe.db.escape(user)}"
