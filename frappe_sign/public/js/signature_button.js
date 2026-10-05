@@ -82,7 +82,9 @@ frappe_sign.set_sign_actions = function (frm, config, status) {
 	const sign = () => frappe_sign.open_sign_dialog(status.my_token, frm);
 	const request = () => frappe_sign.open_request_dialog(frm, config);
 	const gated = frappe_sign.is_gated(frm, config);
-	const can_write = frm.perm[0]?.write; // read before locking changes it
+	// Same rule as the server (_check_can_request): submit on submittable records,
+	// write otherwise. Read before locking changes it.
+	const can_manage = frm.meta.is_submittable ? frm.perm[0]?.submit : frm.perm[0]?.write;
 	const draft = frm.doc.docstatus === 0;
 
 	// One request at a time: a new one only when there is none, or it was declined
@@ -94,16 +96,16 @@ frappe_sign.set_sign_actions = function (frm, config, status) {
 		draft && status && (status.status === "Awaiting Signature" || (status.status === "Signed" && frm.meta.is_submittable));
 	const untouched =
 		status && status.status === "Awaiting Signature" && status.signers.every((s) => s.status === "Pending");
-	const can_request = can_write && (draft || !config.require_signature_to_submit);
+	const can_request = can_manage && (draft || !config.require_signature_to_submit);
 
 	if (out) frappe_sign.lock_form(frm);
-	if (can_write && untouched) {
+	if (can_manage && untouched) {
 		frm.add_custom_button(__("Update Signature Request"), () =>
 			frappe_sign.open_request_dialog(frm, config, status.name)
 		);
 	}
-	if (can_write && out) frm.add_custom_button(__("Withdraw Request"), () => frappe_sign.withdraw(frm, status));
-	if (can_write && status && status.status === "Awaiting Signature") {
+	if (can_manage && out) frm.add_custom_button(__("Withdraw Request"), () => frappe_sign.withdraw(frm, status));
+	if (can_manage && status && status.status === "Awaiting Signature") {
 		frm.add_custom_button(__("Send Reminder"), () => frappe_sign.send_reminder(status.name));
 	}
 	if (can_request && needs_request && !gated) {
@@ -133,7 +135,7 @@ frappe_sign.set_sign_actions = function (frm, config, status) {
 	if (status && status.my_token) {
 		frm.page.set_primary_action(__("Sign"), sign, "edit");
 	} else if (needs_request) {
-		frm.page.set_primary_action(__("Request Signature"), request);
+		if (can_request) frm.page.set_primary_action(__("Request Signature"), request);
 	} else if (status.status === "Signed") {
 		// Everyone signed (usually already auto-submitted; this is the fallback).
 		frm.page.set_primary_action(__("Submit"), () => frm.savesubmit());
@@ -215,7 +217,12 @@ frappe_sign.render_signers = function (frm, status) {
 			${
 				status.earlier_requests
 					? `<div class="text-muted small mt-2">${__("{0} earlier request(s) on this document.", [status.earlier_requests])}
-						<a href="/app/signature-request?reference_doctype=${encodeURIComponent(frm.doctype)}&reference_name=${encodeURIComponent(frm.doc.name)}">${__("View all")}</a></div>`
+						${
+							// A Sign User's list holds only their own requests (get_permission_query_conditions).
+							frappe.user.has_role(["Sign Manager", "System Manager"])
+								? `<a href="/app/signature-request?reference_doctype=${encodeURIComponent(frm.doctype)}&reference_name=${encodeURIComponent(frm.doc.name)}">${__("View all")}</a>`
+								: ""
+						}</div>`
 					: ""
 			}
 		</div>`;

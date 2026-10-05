@@ -41,6 +41,16 @@ doc_events = {
 	}
 }
 
+# Permissions
+# -----------
+# Sign User: own requests, plus read on requests for records they can read.
+has_permission = {
+	"Signature Request": "frappe_sign.frappe_sign.doctype.signature_request.signature_request.has_permission",
+}
+permission_query_conditions = {
+	"Signature Request": "frappe_sign.frappe_sign.doctype.signature_request.signature_request.get_permission_query_conditions",
+}
+
 # Website
 # -------
 website_route_rules = [

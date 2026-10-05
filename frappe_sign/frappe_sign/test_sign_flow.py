@@ -25,7 +25,7 @@ PNG = base64.b64encode(
 
 BOX = {"page": 0, "x": 60.0, "y": 600.0, "w": 140.0, "h": 45.0}
 
-_created = {"requests": [], "config": None, "supplier": None, "saved_signatures": {}}
+_created = {"requests": [], "config": None, "supplier": None, "saved_signatures": {}, "role": None, "users": []}
 
 
 def _log(ok, label):
@@ -105,6 +105,7 @@ def run():
 		test_hardening()
 		test_standalone_request()
 		test_merge_pdfs()
+		test_roles_and_permissions()
 		test_sign_in_order()
 		test_parallel_notifies_everyone()
 		test_status_shows_turn()
@@ -143,6 +144,11 @@ def setup():
 			{"doctype": "Supplier", "supplier_name": "Sign Test Supplier"}
 		).insert(ignore_permissions=True)
 		_created["supplier"] = s.name
+	# The checks that send as another user need them to hold a Sign role.
+	user = _other_user()
+	if "Sign User" not in frappe.get_roles(user):
+		frappe.get_doc("User", user).add_roles("Sign User")
+		_created["role"] = user
 	# Anything not here at the start was made by these checks and is removed after.
 	# Real people's saved signatures, as they are now: a User signer in these
 	# checks signs with that user's real email, which replaces theirs.
@@ -171,6 +177,10 @@ def teardown():
 			api._save_signature(s.name, before[s.name])  # put theirs back
 	if _created["supplier"]:
 		frappe.delete_doc("Supplier", _created["supplier"], force=True, ignore_permissions=True)
+	if _created["role"]:
+		frappe.get_doc("User", _created["role"]).remove_roles("Sign User")
+	for name in _created["users"]:
+		frappe.delete_doc("User", name, force=True, ignore_permissions=True)
 	frappe.db.commit()
 
 
@@ -600,13 +610,7 @@ def test_record_is_submitted_when_signed():
 			events.append(("comment", text))
 
 	stub = {"doc": Stub()}
-
-	def get_meta(dt, *a, **k):
-		meta = real_get_meta(dt, *a, **k)
-		if dt == "ToDo":
-			meta = copy.copy(meta)
-			meta.is_submittable = 1
-		return meta
+	get_meta = _todo_submittable(real_get_meta)
 
 	def get_doc(*a, **k):
 		if len(a) == 2 and a[0] == "ToDo":
@@ -631,7 +635,10 @@ def test_record_is_submitted_when_signed():
 
 	sessions = []
 	sign_new_request()
-	_log(events == [("submit", "Administrator", True)], f"submitted as the requester, got {events}")
+	_log(
+		events == [("submit", "Administrator", None)],
+		f"submitted as the requester, with their own permissions, got {events}",
+	)
 	_log(
 		sessions[-1] == ("Guest", "signer-sid", {"user_type": "System User", "csrf_token": "t"}),
 		f"the signer's session is left exactly as it was, got {sessions[-1]}",
@@ -797,6 +804,19 @@ def _other_user():
 	)
 
 
+def _todo_submittable(real_get_meta):
+	"""A frappe.get_meta stand-in: ToDo isn't submittable, so pretend it is."""
+
+	def get_meta(dt, *a, **k):
+		meta = real_get_meta(dt, *a, **k)
+		if dt == "ToDo":
+			meta = copy.copy(meta)
+			meta.is_submittable = 1
+		return meta
+
+	return get_meta
+
+
 def test_hardening():
 	print("\nv1 hardening")
 	from frappe_sign.frappe_sign.utils import file_url_to_path
@@ -952,6 +972,101 @@ def test_merge_pdfs():
 		for url in (c, txt, fake):
 			for name in frappe.get_all("File", {"file_url": url}, pluck="name"):
 				frappe.delete_doc("File", name, force=True, ignore_permissions=True)
+
+
+def _test_user(email, **values):
+	user = frappe.get_doc(
+		{"doctype": "User", "email": email, "first_name": email.split("@")[0], "send_welcome_email": 0, **values}
+	).insert(ignore_permissions=True)
+	_created["users"].append(user.name)
+	return user
+
+
+def test_roles_and_permissions():
+	print("\nwho may request: a Sign role, plus submit (or write) on the record")
+	from frappe_sign.frappe_sign.utils import save_private_file
+
+	letter = save_private_file("roles.pdf", _pdf((300, 300)), None, None, None)
+	req = frappe.get_doc({"doctype": "Signature Request", "source_pdf": letter}).insert()
+	_created["requests"].append(req.name)
+	email = [_signer("Email", None, "Tenant", "tenant@example.com")]
+
+	portal = _test_user("sign-portal@example.com", user_type="Website User")
+	desk = _test_user("sign-desk@example.com", roles=[{"role": "Sign User"}])
+
+	frappe.set_user(portal.name)
+	try:
+		_throws(lambda: _create(email), "a portal user can't request a record's signature")
+		_throws(
+			lambda: frappe.get_doc({"doctype": "Signature Request", "source_pdf": letter}).insert(),
+			"nor start a standalone one",
+		)
+		_throws(lambda: api.update_signature_request(req.name, email), "nor send someone else's")
+	finally:
+		frappe.set_user("Administrator")
+
+	todo = None
+	frappe.set_user(desk.name)
+	try:
+		_log(not frappe.has_permission("Signature Request", "read", doc=req), "a Sign User can't see others' standalone requests")
+		_throws(lambda: api.get_editable_request(req.name), "nor manage them")
+	finally:
+		frappe.set_user("Administrator")
+
+	# Two officers on one record: one sends it, the other can still follow it.
+	shared = frappe.get_doc({"doctype": "ToDo", "description": "Shared record", "allocated_to": desk.name}).insert()
+	private = frappe.get_doc({"doctype": "ToDo", "description": "Not theirs"}).insert()
+	colleague = api.create_signature_request("ToDo", shared.name, email)["name"]
+	theirs = frappe._dict(name=api.create_signature_request("ToDo", private.name, email)["name"])
+	_created["requests"] += [colleague, theirs.name]
+	frappe.set_user(desk.name)
+	try:
+		doc = frappe.get_doc("Signature Request", colleague)
+		_log(frappe.has_permission("Signature Request", "read", doc=doc), "a colleague's request on a record I can read opens")
+		_log(not frappe.has_permission("Signature Request", "write", doc=doc), "read-only")
+		_log(
+			not frappe.has_permission("Signature Request", "read", doc=frappe.get_doc("Signature Request", theirs.name)),
+			"not one on a record I can't read",
+		)
+		_log(
+			not {colleague, theirs.name} & set(frappe.get_list("Signature Request", pluck="name")),
+			"my list holds only my own requests",
+		)
+	finally:
+		frappe.set_user("Administrator")
+		for todo_name in (shared.name, private.name):
+			frappe.delete_doc("ToDo", todo_name, force=True, ignore_permissions=True)
+
+	frappe.set_user(desk.name)
+	try:
+
+		todo = frappe.get_doc({"doctype": "ToDo", "description": "Sign roles check", "allocated_to": desk.name}).insert()
+		mine = api.create_signature_request("ToDo", todo.name, email)
+		_created["requests"].append(mine["name"])
+		_log(True, "a Sign User can request on a record they can write (not submittable)")
+		api.withdraw_signature_request(mine["name"])
+
+		real_get_meta, frappe.get_meta = frappe.get_meta, _todo_submittable(frappe.get_meta)
+		try:
+			_throws(
+				lambda: api.create_signature_request("ToDo", todo.name, email),
+				"but not on a submittable record they can't submit",
+			)
+		finally:
+			frappe.get_meta = real_get_meta
+	finally:
+		frappe.set_user("Administrator")
+		if todo:
+			frappe.delete_doc("ToDo", todo.name, force=True, ignore_permissions=True)
+
+	desk.add_roles("Sign Manager")
+	frappe.set_user(desk.name)
+	try:
+		_log(frappe.has_permission("Signature Request", "read", doc=req), "a Sign Manager sees everyone's requests")
+		_log(req.name in frappe.get_list("Signature Request", pluck="name"), "in the list too")
+		_log(api.get_editable_request(req.name)["name"] == req.name, "and can manage them")
+	finally:
+		frappe.set_user("Administrator")
 
 
 # ---------------------------------------------------------------------------

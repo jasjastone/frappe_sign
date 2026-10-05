@@ -360,27 +360,27 @@
     }
   });
   frappe_sign.set_sign_actions = function(frm, config, status) {
-    var _a;
+    var _a, _b;
     const sign = () => frappe_sign.open_sign_dialog(status.my_token, frm);
     const request = () => frappe_sign.open_request_dialog(frm, config);
     const gated = frappe_sign.is_gated(frm, config);
-    const can_write = (_a = frm.perm[0]) == null ? void 0 : _a.write;
+    const can_manage = frm.meta.is_submittable ? (_a = frm.perm[0]) == null ? void 0 : _a.submit : (_b = frm.perm[0]) == null ? void 0 : _b.write;
     const draft = frm.doc.docstatus === 0;
     const needs_request = !status || ["Rejected", "Withdrawn"].includes(status.status);
     const out = draft && status && (status.status === "Awaiting Signature" || status.status === "Signed" && frm.meta.is_submittable);
     const untouched = status && status.status === "Awaiting Signature" && status.signers.every((s) => s.status === "Pending");
-    const can_request = can_write && (draft || !config.require_signature_to_submit);
+    const can_request = can_manage && (draft || !config.require_signature_to_submit);
     if (out)
       frappe_sign.lock_form(frm);
-    if (can_write && untouched) {
+    if (can_manage && untouched) {
       frm.add_custom_button(
         __("Update Signature Request"),
         () => frappe_sign.open_request_dialog(frm, config, status.name)
       );
     }
-    if (can_write && out)
+    if (can_manage && out)
       frm.add_custom_button(__("Withdraw Request"), () => frappe_sign.withdraw(frm, status));
-    if (can_write && status && status.status === "Awaiting Signature") {
+    if (can_manage && status && status.status === "Awaiting Signature") {
       frm.add_custom_button(__("Send Reminder"), () => frappe_sign.send_reminder(status.name));
     }
     if (can_request && needs_request && !gated) {
@@ -406,7 +406,8 @@
     if (status && status.my_token) {
       frm.page.set_primary_action(__("Sign"), sign, "edit");
     } else if (needs_request) {
-      frm.page.set_primary_action(__("Request Signature"), request);
+      if (can_request)
+        frm.page.set_primary_action(__("Request Signature"), request);
     } else if (status.status === "Signed") {
       frm.page.set_primary_action(__("Submit"), () => frm.savesubmit());
     } else {
@@ -468,7 +469,7 @@
 				<tbody>${rows}</tbody>
 			</table>
 			${status.earlier_requests ? `<div class="text-muted small mt-2">${__("{0} earlier request(s) on this document.", [status.earlier_requests])}
-						<a href="/app/signature-request?reference_doctype=${encodeURIComponent(frm.doctype)}&reference_name=${encodeURIComponent(frm.doc.name)}">${__("View all")}</a></div>` : ""}
+						${frappe.user.has_role(["Sign Manager", "System Manager"]) ? `<a href="/app/signature-request?reference_doctype=${encodeURIComponent(frm.doctype)}&reference_name=${encodeURIComponent(frm.doc.name)}">${__("View all")}</a>` : ""}</div>` : ""}
 		</div>`;
     frm.layout.wrapper.find(".frappe-sign-status-section").remove();
     const tab = frm.layout.tabs.find((t) => !t.is_hidden());
@@ -887,4 +888,4 @@
     }
   };
 })();
-//# sourceMappingURL=frappe_sign.bundle.JH5E5PJM.js.map
+//# sourceMappingURL=frappe_sign.bundle.R72PLBMJ.js.map
