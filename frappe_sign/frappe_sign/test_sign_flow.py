@@ -1010,7 +1010,7 @@ def test_roles_and_permissions():
 	try:
 		_log(not frappe.has_permission("Signature Request", "read", doc=req), "a Sign User can't see others' standalone requests")
 		_throws(lambda: api.get_editable_request(req.name), "nor manage them")
-	finally:
+		_log(api.get_signer_details("User", portal.name)["signer_email"] == portal.name, "a Sign User can pick a User signer (select)")	finally:
 		frappe.set_user("Administrator")
 
 	# Two officers on one record: one sends it, the other can still follow it.

@@ -462,9 +462,12 @@ def get_signer_details(signer_type, reference):
 	"""What the request dialog shows (read-only) once a signer is picked."""
 	if signer_type not in SIGNER_TYPES or signer_type == "Email":
 		frappe.throw(_("Invalid signer type {0}").format(escape_html(str(signer_type))))
-	# select, not read: that's what the Link field needs to pick them (Desk User has
-	# only select on User), and all this returns is the name and email.
-	if not frappe.has_permission(signer_type, "select", reference):
+	# Same gate as the Link field that picked them (frappe.desk.search): select or
+	# read. Desk User has only select on User; HR/Sales/Purchase roles only read.
+	if not (
+		frappe.has_permission(signer_type, "select", reference)
+		or frappe.has_permission(signer_type, "read", reference)
+	):
 		raise frappe.PermissionError
 	return _signer_details(signer_type, reference)
 
