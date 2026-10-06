@@ -130,13 +130,16 @@
         return;
       }
       const title = frappe.utils.escape_html(ctx.request_title || "");
+      const is_sig = (b) => (b.type || "signature") === "signature";
+      const sig_count = ctx.sign_boxes.filter(is_sig).length;
+      const field_text = { name: ctx.signer_name, date: ctx.today };
       $c.html(`
 			<div class="sign-doc-head">
 				<div class="sign-doc-title">${title}</div>
 				<a class="small" href="${ctx.pdf_url}" target="_blank" rel="noopener">${__("Open full PDF")}</a>
 			</div>
 			<div class="sign-places text-muted small">
-				${ctx.sign_boxes.length > 1 ? __("You sign in {0} places. One signature fills all of them.", [ctx.sign_boxes.length]) : __("Read the document, then sign in the highlighted box.")}
+				${sig_count > 1 ? __("You sign in {0} places. One signature fills all of them.", [sig_count]) : __("Read the document, then sign in the highlighted box.")}
 				<button type="button" class="sign-show-where">\u2193 ${__("Show where to sign")}</button>
 			</div>
 			<div class="sign-pdf-pages"></div>
@@ -187,7 +190,7 @@
         const viewport = await render_page(pdf, n, canvas, width, ratio);
         const scale = viewport.width / (await pdf.getPage(n)).getViewport({ scale: 1 }).width;
         ctx.sign_boxes.filter((b) => b.page === n - 1).forEach(
-          (b) => $(`<div class="sign-pdf-box"><span class="sign-here">${__("Sign here")}</span><img hidden /></div>`).css({ left: b.x * scale + "px", top: b.y * scale + "px", width: b.w * scale + "px", height: b.h * scale + "px" }).appendTo($page)
+          (b) => (is_sig(b) ? $(`<div class="sign-pdf-box"><span class="sign-here">${__("Sign here")}</span><img hidden /></div>`) : $(`<div class="sign-pdf-field"></div>`).text(field_text[b.type] || "").css("font-size", Math.min(b.h * 0.7, 16) * scale + "px")).css({ left: b.x * scale + "px", top: b.y * scale + "px", width: b.w * scale + "px", height: b.h * scale + "px" }).appendTo($page)
         );
       }
       const $box = $pages.find(".sign-pdf-box");
@@ -513,7 +516,12 @@
     const sending = !request_name || standalone && frm.doc.status === "Draft";
     const signers = [];
     const COLORS = ["#2490ef", "#e2495e", "#29cd42", "#f4a93a", "#9a5cf3", "#16b4c4"];
-    const DEFAULT_BOX = { w: 160, h: 50 };
+    const FIELDS = {
+      signature: { label: __("Signature"), w: 160, h: 50 },
+      name: { label: __("Name"), w: 150, h: 22 },
+      date: { label: __("Date"), w: 100, h: 22 }
+    };
+    let tool = "signature";
     let next_color = 0;
     let active = null;
     let in_order = 0;
@@ -702,7 +710,7 @@
       draw_boxes();
       $place.find(".sign-place-hint").text(
         active ? __(
-          "Click wherever {0} should sign; each click adds another place. Drag a box to move it, its corner to resize it, or \xD7 to remove it.",
+          "Pick Signature, Name or Date, then click wherever {0} should have it; each click adds another place. Drag a box to move it, its corner to resize it, or \xD7 to remove it.",
           [active.signer_name]
         ) : __("Add a signer above, then click on the document where they should sign.")
       );
@@ -736,7 +744,9 @@
 						<span class="sign-place-resize"></span>
 					</div>`).css({ left: box.x * page.scale, top: box.y * page.scale, width: box.w * page.scale, height: box.h * page.scale }).toggleClass("is-active", s === active).appendTo(page.el);
           $b[0].style.setProperty("--c", s.color);
-          $b.find(".sign-place-label").text(s.sign_boxes.length > 1 ? `${s.signer_name} \xB7 ${i + 1}` : s.signer_name);
+          const kind = box.type || "signature";
+          const label = kind === "signature" ? s.signer_name : `${s.signer_name} \xB7 ${FIELDS[kind].label}`;
+          $b.find(".sign-place-label").text(s.sign_boxes.length > 1 ? `${label} \xB7 ${i + 1}` : label);
           $b.find(".sign-place-remove").on("click", () => remove_box(s, box));
           $b[0].addEventListener("pointerdown", (e) => drag_box(e, s, box, $b[0]));
         });
@@ -797,7 +807,7 @@
           if (box)
             Object.assign(box, pts);
           else
-            s.sign_boxes.push(box = pts);
+            s.sign_boxes.push(box = __spreadProps(__spreadValues({}, pts), { type: tool }));
           draw_boxes();
         };
         const up = () => {
@@ -806,16 +816,16 @@
           canvas.removeEventListener("pointercancel", up);
           if (!box) {
             const sc = pages[page_idx].scale;
-            const w = DEFAULT_BOX.w * sc;
-            const h = DEFAULT_BOX.h * sc;
-            s.sign_boxes.push(
-              to_points(page_idx, {
-                x: clamp(a.x - w / 2, 0, canvas.width - w),
-                y: clamp(a.y - h / 2, 0, canvas.height - h),
-                w,
-                h
-              })
-            );
+            const w = FIELDS[tool].w * sc;
+            const h = FIELDS[tool].h * sc;
+            s.sign_boxes.push(__spreadProps(__spreadValues({}, to_points(page_idx, {
+              x: clamp(a.x - w / 2, 0, canvas.width - w),
+              y: clamp(a.y - h / 2, 0, canvas.height - h),
+              w,
+              h
+            })), {
+              type: tool
+            }));
           }
           set_active(s);
         };
@@ -826,9 +836,18 @@
     }
     async function render_document() {
       $place.html(`
+			<div class="mb-2 sign-place-tools btn-group btn-group-sm" role="group">
+				${Object.entries(FIELDS).map(([k, f]) => `<button type="button" class="btn btn-default" data-tool="${k}">${f.label}</button>`).join("")}
+			</div>
 			<div class="mb-2 sign-place-hint"></div>
 			<div class="sign-place-wrap"><div class="text-muted p-3">${__("Rendering document...")}</div></div>
 		`);
+      const set_tool = (t) => {
+        tool = t;
+        $place.find(".sign-place-tools .btn").removeClass("btn-primary").filter(`[data-tool="${t}"]`).addClass("btn-primary");
+      };
+      $place.find(".sign-place-tools .btn").on("click", (e) => set_tool($(e.currentTarget).data("tool")));
+      set_tool(tool);
       set_active(active);
       const $wrap = $place.find(".sign-place-wrap");
       let pdf;
@@ -856,7 +875,7 @@
     function submit() {
       if (!signers.length)
         return frappe.msgprint(__("Add at least one signer."));
-      const unplaced = signers.find((s) => !s.sign_boxes.length);
+      const unplaced = signers.find((s) => !s.sign_boxes.some((b) => (b.type || "signature") === "signature"));
       if (unplaced) {
         return frappe.msgprint(__("Place a signature box for {0} before sending.", [frappe.utils.escape_html(unplaced.signer_name)]));
       }
@@ -888,4 +907,4 @@
     }
   };
 })();
-//# sourceMappingURL=frappe_sign.bundle.R72PLBMJ.js.map
+//# sourceMappingURL=frappe_sign.bundle.BHG44XMV.js.map

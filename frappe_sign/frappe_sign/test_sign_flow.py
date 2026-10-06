@@ -94,6 +94,7 @@ def run():
 		test_no_signature_image_is_persisted()
 		test_signature_is_remembered_per_email()
 		test_one_signature_fills_every_box()
+		test_name_and_date_fields()
 		test_rejected_request_is_closed()
 		test_signers_panel()
 		test_submit_blocked_until_signed()
@@ -227,6 +228,22 @@ def test_placement_is_mandatory():
 			],
 		),
 		"the same email twice is refused",
+	)
+	_throws(
+		lambda: api.create_signature_request(
+			reference_doctype="ToDo",
+			reference_name=_ref(),
+			signers=[_signer("Email", None, "Only Name", "onlyname@example.com", [{**BOX, "type": "name"}])],
+		),
+		"a signer with a name box but no signature box is refused",
+	)
+	_throws(
+		lambda: api.create_signature_request(
+			reference_doctype="ToDo",
+			reference_name=_ref(),
+			signers=[_signer("Email", None, "Odd Field", "odd@example.com", [BOX, {**BOX, "type": "bogus"}])],
+		),
+		"an unknown field type is refused",
 	)
 
 
@@ -511,6 +528,34 @@ def test_one_signature_fills_every_box():
 	_log(not audits, "only the signature is stamped: no audit text on the document")
 	signer = frappe.get_doc("Signature Request", req.name).signers[0]
 	_log(bool(signer.signed_on and signer.signed_ip), "signed on / IP are kept on the signer row instead")
+
+
+def test_name_and_date_fields():
+	print("\nname and date boxes are stamped as text by the server")
+	import fitz
+
+	from frappe_sign.frappe_sign.utils import file_url_to_path
+
+	boxes = [BOX, {**BOX, "y": 300.0, "h": 22.0, "type": "name"}, {**BOX, "y": 400.0, "h": 22.0, "type": "date"}]
+	req = _create([_signer("Email", None, "Field Person", "fields@example.com", boxes)])
+	saved = frappe.parse_json(req.signers[0].sign_boxes)
+	_log([b["type"] for b in saved] == ["signature", "name", "date"], "box types are kept")
+	frappe.set_user("Guest")
+	ctx = api.get_signing_context(_token(req))
+	api.submit_signature(_token(req), PNG)
+	frappe.set_user("Administrator")
+	req.reload()
+
+	with fitz.open(file_url_to_path(req.source_pdf)) as doc:
+		before = len(doc[0].get_image_info())
+	with fitz.open(file_url_to_path(req.signed_pdf)) as doc:
+		added = len(doc[0].get_image_info()) - before
+		text = doc[0].get_text()
+	signed_on = frappe.utils.formatdate(req.signers[0].signed_on)
+	_log(added == 1, f"one signature image for the one signature box, got {added}")
+	_log("Field Person" in text, "the signer's name is stamped")
+	_log(signed_on in text, f"the signing date {signed_on} is stamped")
+	_log(ctx["today"] == signed_on, "the signer was shown the date that was stamped")
 
 
 def test_rejected_request_is_closed():
@@ -1010,7 +1055,8 @@ def test_roles_and_permissions():
 	try:
 		_log(not frappe.has_permission("Signature Request", "read", doc=req), "a Sign User can't see others' standalone requests")
 		_throws(lambda: api.get_editable_request(req.name), "nor manage them")
-		_log(api.get_signer_details("User", portal.name)["signer_email"] == portal.name, "a Sign User can pick a User signer (select)")	finally:
+		_log(api.get_signer_details("User", portal.name)["signer_email"] == portal.name, "a Sign User can pick a User signer (select)")
+	finally:
 		frappe.set_user("Administrator")
 
 	# Two officers on one record: one sends it, the other can still follow it.

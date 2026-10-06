@@ -86,6 +86,18 @@
 	max-height: 100%;
 }
 
+/* Name / date: filled in for the signer, so read-only. */
+.frappe-sign-widget .sign-pdf-field {
+	position: absolute;
+	border: 1px dashed var(--gray-500, #98a1a9);
+	display: flex;
+	align-items: center;
+	padding: 0 2px;
+	white-space: nowrap;
+	overflow: hidden;
+	color: var(--gray-800, #383838);
+}
+
 .frappe-sign-widget .sign-here {
 	font-size: 12px;
 	font-weight: 600;

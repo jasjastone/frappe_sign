@@ -172,16 +172,18 @@ def shrink_signature(image_bytes):
 	return fitz.Pixmap(pix, max(1, round(pix.width * scale)), max(1, round(pix.height * scale)), None).tobytes("png")
 
 
-def merge_signature(current_pdf_url, signature_image_bytes, signer):
-	"""6.3 — stamp the signature image into each of the signer's boxes. Only the
-	image: who signed, when and from where are kept on the signer row
-	(signed_on, signed_ip), not printed on the document.
+def merge_signature(current_pdf_url, signature_image_bytes, signer, signed_on):
+	"""6.3 — stamp the signer's boxes: the signature image into each signature box,
+	their name / the signing date as text into name and date boxes. Nothing else:
+	who signed, when and from where are kept on the signer row (signed_on,
+	signed_ip), not printed on the document.
 
 	`signature_image_bytes` comes straight from the API payload and is never
 	read from storage (D9). Returns the new PDF as bytes.
 	"""
 	import fitz
 
+	texts = {"name": signer.signer_name, "date": frappe.utils.formatdate(signed_on)}
 	doc = fitz.open(file_url_to_path(current_pdf_url))
 	try:
 		# The same signature goes into every box this signer was given — stored
@@ -190,7 +192,10 @@ def merge_signature(current_pdf_url, signature_image_bytes, signer):
 		for box in frappe.parse_json(signer.sign_boxes) or []:
 			rect = fitz.Rect(box["x"], box["y"], box["x"] + box["w"], box["y"] + box["h"])
 			page = doc[int(box["page"])]
-			if xref:
+			kind = box.get("type") or "signature"
+			if kind != "signature":
+				stamp_text(page, rect, texts[kind])
+			elif xref:
 				page.insert_image(rect, xref=xref)
 			else:
 				xref = page.insert_image(rect, stream=signature_image_bytes)
@@ -201,3 +206,12 @@ def merge_signature(current_pdf_url, signature_image_bytes, signer):
 		return out.getvalue()
 	finally:
 		doc.close()
+
+
+def stamp_text(page, rect, text):
+	"""One line of text, as large as fits the box, vertically centred."""
+	import fitz
+
+	pad = 2
+	size = min(rect.height * 0.7, (rect.width - 2 * pad) / max(fitz.get_text_length(text, fontsize=1), 1))
+	page.insert_text((rect.x0 + pad, rect.y0 + (rect.height + size * 0.7) / 2), text, fontsize=size)

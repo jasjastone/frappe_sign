@@ -286,7 +286,14 @@ frappe_sign.open_request_dialog = async function (frm, config, request_name) {
 
 	const signers = [];
 	const COLORS = ["#2490ef", "#e2495e", "#29cd42", "#f4a93a", "#9a5cf3", "#16b4c4"];
-	const DEFAULT_BOX = { w: 160, h: 50 }; // PDF points
+	// What a click places, and its default size in PDF points. Name and date are
+	// stamped by the server when the signer signs; they type nothing.
+	const FIELDS = {
+		signature: { label: __("Signature"), w: 160, h: 50 },
+		name: { label: __("Name"), w: 150, h: 22 },
+		date: { label: __("Date"), w: 100, h: 22 },
+	};
+	let tool = "signature";
 	let next_color = 0;
 	let active = null; // the signer the next click on the document places
 	let in_order = 0;
@@ -522,7 +529,7 @@ frappe_sign.open_request_dialog = async function (frm, config, request_name) {
 		$place.find(".sign-place-hint").text(
 			active
 				? __(
-						"Click wherever {0} should sign; each click adds another place. Drag a box to move it, its corner to resize it, or × to remove it.",
+						"Pick Signature, Name or Date, then click wherever {0} should have it; each click adds another place. Drag a box to move it, its corner to resize it, or × to remove it.",
 						[active.signer_name]
 				  )
 				: __("Add a signer above, then click on the document where they should sign.")
@@ -564,7 +571,9 @@ frappe_sign.open_request_dialog = async function (frm, config, request_name) {
 					.toggleClass("is-active", s === active)
 					.appendTo(page.el);
 				$b[0].style.setProperty("--c", s.color);
-				$b.find(".sign-place-label").text(s.sign_boxes.length > 1 ? `${s.signer_name} · ${i + 1}` : s.signer_name);
+				const kind = box.type || "signature";
+				const label = kind === "signature" ? s.signer_name : `${s.signer_name} · ${FIELDS[kind].label}`;
+				$b.find(".sign-place-label").text(s.sign_boxes.length > 1 ? `${label} · ${i + 1}` : label);
 				$b.find(".sign-place-remove").on("click", () => remove_box(s, box));
 				$b[0].addEventListener("pointerdown", (e) => drag_box(e, s, box, $b[0]));
 			});
@@ -629,7 +638,7 @@ frappe_sign.open_request_dialog = async function (frm, config, request_name) {
 				if (!box && Math.abs(b.x - a.x) < 10 && Math.abs(b.y - a.y) < 10) return;
 				const pts = to_points(page_idx, { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(b.x - a.x), h: Math.abs(b.y - a.y) });
 				if (box) Object.assign(box, pts);
-				else s.sign_boxes.push((box = pts));
+				else s.sign_boxes.push((box = { ...pts, type: tool }));
 				draw_boxes();
 			};
 			const up = () => {
@@ -638,16 +647,17 @@ frappe_sign.open_request_dialog = async function (frm, config, request_name) {
 				canvas.removeEventListener("pointercancel", up);
 				if (!box) {
 					const sc = pages[page_idx].scale;
-					const w = DEFAULT_BOX.w * sc;
-					const h = DEFAULT_BOX.h * sc;
-					s.sign_boxes.push(
-						to_points(page_idx, {
+					const w = FIELDS[tool].w * sc;
+					const h = FIELDS[tool].h * sc;
+					s.sign_boxes.push({
+						...to_points(page_idx, {
 							x: clamp(a.x - w / 2, 0, canvas.width - w),
 							y: clamp(a.y - h / 2, 0, canvas.height - h),
 							w,
 							h,
-						})
-					);
+						}),
+						type: tool,
+					});
 				}
 				set_active(s);
 			};
@@ -659,9 +669,20 @@ frappe_sign.open_request_dialog = async function (frm, config, request_name) {
 
 	async function render_document() {
 		$place.html(`
+			<div class="mb-2 sign-place-tools btn-group btn-group-sm" role="group">
+				${Object.entries(FIELDS)
+					.map(([k, f]) => `<button type="button" class="btn btn-default" data-tool="${k}">${f.label}</button>`)
+					.join("")}
+			</div>
 			<div class="mb-2 sign-place-hint"></div>
 			<div class="sign-place-wrap"><div class="text-muted p-3">${__("Rendering document...")}</div></div>
 		`);
+		const set_tool = (t) => {
+			tool = t;
+			$place.find(".sign-place-tools .btn").removeClass("btn-primary").filter(`[data-tool="${t}"]`).addClass("btn-primary");
+		};
+		$place.find(".sign-place-tools .btn").on("click", (e) => set_tool($(e.currentTarget).data("tool")));
+		set_tool(tool);
 		set_active(active);
 		const $wrap = $place.find(".sign-place-wrap");
 		let pdf;
@@ -689,7 +710,7 @@ frappe_sign.open_request_dialog = async function (frm, config, request_name) {
 
 	function submit() {
 		if (!signers.length) return frappe.msgprint(__("Add at least one signer."));
-		const unplaced = signers.find((s) => !s.sign_boxes.length);
+		const unplaced = signers.find((s) => !s.sign_boxes.some((b) => (b.type || "signature") === "signature"));
 		if (unplaced) {
 			return frappe.msgprint(__("Place a signature box for {0} before sending.", [frappe.utils.escape_html(unplaced.signer_name)]));
 		}

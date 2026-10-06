@@ -110,13 +110,16 @@
         return;
       }
       const title = frappe.utils.escape_html(ctx.request_title || "");
+      const is_sig = (b) => (b.type || "signature") === "signature";
+      const sig_count = ctx.sign_boxes.filter(is_sig).length;
+      const field_text = { name: ctx.signer_name, date: ctx.today };
       $c.html(`
 			<div class="sign-doc-head">
 				<div class="sign-doc-title">${title}</div>
 				<a class="small" href="${ctx.pdf_url}" target="_blank" rel="noopener">${__("Open full PDF")}</a>
 			</div>
 			<div class="sign-places text-muted small">
-				${ctx.sign_boxes.length > 1 ? __("You sign in {0} places. One signature fills all of them.", [ctx.sign_boxes.length]) : __("Read the document, then sign in the highlighted box.")}
+				${sig_count > 1 ? __("You sign in {0} places. One signature fills all of them.", [sig_count]) : __("Read the document, then sign in the highlighted box.")}
 				<button type="button" class="sign-show-where">\u2193 ${__("Show where to sign")}</button>
 			</div>
 			<div class="sign-pdf-pages"></div>
@@ -167,7 +170,7 @@
         const viewport = await render_page(pdf, n, canvas, width, ratio);
         const scale = viewport.width / (await pdf.getPage(n)).getViewport({ scale: 1 }).width;
         ctx.sign_boxes.filter((b) => b.page === n - 1).forEach(
-          (b) => $(`<div class="sign-pdf-box"><span class="sign-here">${__("Sign here")}</span><img hidden /></div>`).css({ left: b.x * scale + "px", top: b.y * scale + "px", width: b.w * scale + "px", height: b.h * scale + "px" }).appendTo($page)
+          (b) => (is_sig(b) ? $(`<div class="sign-pdf-box"><span class="sign-here">${__("Sign here")}</span><img hidden /></div>`) : $(`<div class="sign-pdf-field"></div>`).text(field_text[b.type] || "").css("font-size", Math.min(b.h * 0.7, 16) * scale + "px")).css({ left: b.x * scale + "px", top: b.y * scale + "px", width: b.w * scale + "px", height: b.h * scale + "px" }).appendTo($page)
         );
       }
       const $box = $pages.find(".sign-pdf-box");
@@ -293,4 +296,4 @@
     };
   })();
 })();
-//# sourceMappingURL=sign_page.bundle.CQCN6ANC.js.map
+//# sourceMappingURL=sign_page.bundle.OUQ7ZK4W.js.map

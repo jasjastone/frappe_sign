@@ -138,6 +138,10 @@ window.frappe_sign = window.frappe_sign || {};
 		}
 
 		const title = frappe.utils.escape_html(ctx.request_title || "");
+		const is_sig = (b) => (b.type || "signature") === "signature";
+		const sig_count = ctx.sign_boxes.filter(is_sig).length;
+		// Name and date are stamped by the server; shown here so the signer sees what goes on.
+		const field_text = { name: ctx.signer_name, date: ctx.today };
 		$c.html(`
 			<div class="sign-doc-head">
 				<div class="sign-doc-title">${title}</div>
@@ -145,8 +149,8 @@ window.frappe_sign = window.frappe_sign || {};
 			</div>
 			<div class="sign-places text-muted small">
 				${
-					ctx.sign_boxes.length > 1
-						? __("You sign in {0} places. One signature fills all of them.", [ctx.sign_boxes.length])
+					sig_count > 1
+						? __("You sign in {0} places. One signature fills all of them.", [sig_count])
 						: __("Read the document, then sign in the highlighted box.")
 				}
 				<button type="button" class="sign-show-where">↓ ${__("Show where to sign")}</button>
@@ -205,7 +209,12 @@ window.frappe_sign = window.frappe_sign || {};
 			ctx.sign_boxes
 				.filter((b) => b.page === n - 1)
 				.forEach((b) =>
-					$(`<div class="sign-pdf-box"><span class="sign-here">${__("Sign here")}</span><img hidden /></div>`)
+					(is_sig(b)
+						? $(`<div class="sign-pdf-box"><span class="sign-here">${__("Sign here")}</span><img hidden /></div>`)
+						: $(`<div class="sign-pdf-field"></div>`)
+								.text(field_text[b.type] || "")
+								.css("font-size", Math.min(b.h * 0.7, 16) * scale + "px")
+					)
 						.css({ left: b.x * scale + "px", top: b.y * scale + "px", width: b.w * scale + "px", height: b.h * scale + "px" })
 						.appendTo($page)
 				);

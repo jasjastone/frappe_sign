@@ -23,6 +23,9 @@ from frappe_sign.frappe_sign.utils import (
 )
 
 SIGNER_TYPES = ("User", "Employee", "Customer", "Supplier", "Email")
+# What a box on the document holds. Name and date are filled from the signer row
+# and the signing time, never typed; a box saved before types existed is a signature.
+FIELD_TYPES = ("signature", "name", "date")
 
 
 # ---------------------------------------------------------------------------
@@ -510,12 +513,18 @@ def _validate_signer_payload(s, config):
 	if not isinstance(boxes, list) or not boxes:
 		frappe.throw(_("Place a signature box for {0} before sending.").format(escape_html(s.get("signer_name"))))
 	clean = []
-	for b in boxes:
-		b = {k: flt((b or {}).get(k)) for k in ("page", "x", "y", "w", "h")}
+	for raw in boxes:
+		raw = raw or {}
+		b = {k: flt(raw.get(k)) for k in ("page", "x", "y", "w", "h")}
 		if not (b["w"] > 0 and b["h"] > 0) or b["page"] < 0 or b["x"] < 0 or b["y"] < 0:
 			frappe.throw(_("A signature box for {0} has no size.").format(escape_html(s.get("signer_name"))))
 		b["page"] = int(b["page"])
+		b["type"] = raw.get("type") or "signature"
+		if b["type"] not in FIELD_TYPES:
+			frappe.throw(_("Invalid field type {0}").format(escape_html(str(b["type"]))))
 		clean.append(b)
+	if not any(b["type"] == "signature" for b in clean):
+		frappe.throw(_("Place a signature box for {0} before sending.").format(escape_html(s.get("signer_name"))))
 	s["sign_boxes"] = clean
 
 
@@ -607,6 +616,7 @@ def get_signing_context(key):
 		"signer_name": signer.signer_name,
 		"signer_type": signer.signer_type,
 		"sign_boxes": frappe.parse_json(signer.sign_boxes) or [],
+		"today": frappe.utils.formatdate(now_datetime()),  # what a date box will be stamped with
 		"saved_signature": _saved_signature_data_url(signer.signer_email),
 		"max_signature_px": max_signature_px(),
 	}
@@ -664,7 +674,7 @@ def submit_signature(key, image_base64, is_upload=False):
 	signed_ip = _client_ip()
 
 	previous_signed_pdf = request.signed_pdf
-	merged = merge_signature(request.signed_pdf or request.source_pdf, image_bytes, signer)
+	merged = merge_signature(request.signed_pdf or request.source_pdf, image_bytes, signer, signed_on)
 	signed_url = attach_pdf(merged, f"{request.name}-signed.pdf", request.name, "signed_pdf")
 
 	signer.db_set({"status": "Signed", "signed_on": signed_on, "signed_ip": signed_ip})
