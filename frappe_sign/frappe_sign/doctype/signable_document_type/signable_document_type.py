@@ -12,7 +12,7 @@ class SignableDocumentType(Document):
 		from frappe_sign.frappe_sign.utils import ensure_signature_status_field
 
 		ensure_signature_status_field(self.document_type)
-		frappe.cache.delete_key("bootinfo")
+		frappe.cache().delete_key("bootinfo")
 
 	def on_trash(self):
-		frappe.cache.delete_key("bootinfo")
+		frappe.cache().delete_key("bootinfo")
