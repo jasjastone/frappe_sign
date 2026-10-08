@@ -1,40 +1,95 @@
-## Sign
+## E Signature for Frappe and ERPNext
 
-Embedded e-signature for ERPNext. Signers never leave your domain: system users
-sign in a dialog on the record, everyone else signs on `/sign-document?key=<token>`.
+Get documents signed without leaving your site. Send any record or PDF for
+signing, let people draw or upload their signature, and get back a signed PDF
+with a full record of who signed and when.
 
-This is **not** a cryptographic or PKI signature. It is a drawn or uploaded
-signature image stamped into the PDF, plus an audit trail (name, email,
-timestamp, IP, and any rejection reason).
+> [!WARNING]
+> **This is not a cryptographic (PKI) signature.** The app places a signature
+> image on the PDF and keeps an audit trail (name, email, time and IP address).
+> It does not add a digital certificate to the file.
+>
+> If you are interested in [Documenso](https://github.com/documenso/documenso),
+> which supports cryptographic signing, use the
+> [Documenso integration for ERPNext](https://github.com/jasjastone/sign).
 
-### Setup
+### Features
+
+- **Sign any document type.** Turn on signing for a doctype with one settings
+  record. No code needed.
+- **Sign uploaded PDFs.** Upload a PDF (or merge several into one) and send it
+  for signing, even with no record behind it.
+- **Many kinds of signers.** System users, Employees, Customers, Suppliers or
+  any email address.
+- **Signers stay on your site.** Users sign from the record. Everyone else
+  signs from a secure link sent by email.
+- **Place boxes on the PDF.** Click the page to add signature, name and date
+  boxes for each signer. Name and date are filled in for them.
+- **Draw or upload a signature.** The last signature is remembered, so the next
+  document takes one click.
+- **Signing order.** Let everyone sign at once, or one after another.
+- **Email reminders.** Sent automatically to people who have not signed yet,
+  and you can send one any time.
+- **Reject with a reason.** One rejection stops the whole request.
+- **Withdraw a request.** Take it back to edit the record, then send again.
+- **Locked while out for signing.** The record cannot be changed while people
+  are signing it.
+- **Submit rules.** Block submitting until everyone has signed, or submit
+  automatically once they have.
+- **Audit trail.** Name, email, time and IP address saved for every signer.
+- **Sign dashboard.** See what is waiting for you and what you have sent.
+- **Access control.** Only users with the **Sign User** role can send requests,
+  and they only see their own.
+
+### Supported versions
+
+Frappe v14, v15 and v16.
+
+### Install
 
 ```bash
 bench get-app frappe_sign
 bench --site <site> install-app frappe_sign
 ```
 
-`PyMuPDF` is installed with the app. PDF snapshots are rendered exactly like
-the print view's PDF button, so they carry the document's letter head.
+Give the **Sign User** role to everyone who should send documents for signing.
 
-Letter head headers and footers need the **patched-Qt** build of wkhtmltopdf
-(`wkhtmltopdf -V` must say "with patched qt"). Distro packages are usually
-unpatched and silently drop them — install the build from
-https://github.com/wkhtmltopdf/packaging/releases instead.
+> [!NOTE]
+> To show letter head headers and footers in the PDF, the server needs the
+> "patched qt" version of wkhtmltopdf. Check with `wkhtmltopdf -V`. If it does
+> not say "with patched qt", install it from
+> [wkhtmltopdf releases](https://github.com/wkhtmltopdf/packaging/releases).
 
-### Enabling a doctype
+### How to use
 
-Add one **Signable Document Type** row — document type, print format, and
-whether non-User signers are allowed. No code, ever. A "Request Signature"
-button then appears on that doctype's form.
+**Sign a record**
 
-### Default signers from code: `get_signers()`
+1. Create a **Signable Document Type**. Choose the doctype and print format.
+2. Open a record of that doctype and click **Request Signature**.
+3. Add signers and click the PDF to place their boxes.
+4. Send. Each signer gets an email with their signing link.
 
-A signable doctype can name its own signers by defining `get_signers()` on its
-controller. **Request Signature** then opens with them already listed, in that
-order and set to sign in order; the requester only places the boxes.
+**Sign an uploaded PDF**
 
-It returns a list of dicts, one per signer, in signing order:
+1. Create a new **Signature Request** and attach the PDF.
+2. Save, then click **Request Signature**.
+
+**Track your requests**
+
+Open **Sign** (`/app/sign-dashboard`).
+
+### Settings
+
+Go to **Signature Settings** to:
+
+- Set how many days a signing link stays valid.
+- Turn reminders off.
+- Set the largest size for signature images.
+
+### For developers
+
+**Default signers.** Add `get_signers()` to a doctype's controller and
+**Request Signature** opens with those signers already listed, in that order.
 
 ```python
 class EngagementAgreement(Document):
@@ -46,57 +101,19 @@ class EngagementAgreement(Document):
         ]
 ```
 
-| Key | Required | Notes |
-|---|---|---|
-| `signer_type` | yes | `User`, `Employee`, `Customer`, `Supplier` or `Email`. Anything but `User` needs **Allow External Signers** on the Signable Document Type. |
-| `signer_reference` | yes, except `Email` | The record's name. Name and email are always taken from it: User email; Employee preferred → company → personal → user email; Customer / Supplier email, else a linked Contact's, else a linked Address's. |
-| `signer_email` | `Email` only | Where the signing link goes. |
-| `signer_name` | no (`Email` only) | Defaults to the email. |
+- `signer_type`: `User`, `Employee`, `Customer`, `Supplier` or `Email`.
+  Anything other than `User` needs **Allow External Signers** turned on.
+- `signer_reference`: the record name. The name and email come from it.
+- `signer_email` and `signer_name`: only for `Email` signers.
 
-Every entry becomes a signer. An entry that can't be used (no email on the
-record, unknown type, the same email twice) is shown to the requester as a
-warning and the rest still load; a `get_signers()` that raises is logged to
-the Error Log and the dialog opens empty. The same reference is shown on the
-Signable Document Type form, under **Default Signers (for developers)**.
-
-### Signing a PDF with no record behind it
-
-For letters, contracts or anything made in an office suite: create a new
-**Signature Request**, attach the PDF, save, then click **Request Signature**.
-The Reference section is filled in by the system only, for requests made from a
-record.
-
-### Signing
-
-Requesters add signers (User / Employee / Customer / Supplier / plain Email) and
-click the rendered PDF to place one or more signature boxes for each one (one signature fills them all). Every signer gets a
-tokenised link; all of them can sign in any order. One rejection rejects the
-whole request immediately.
-
-Tick **Signers sign in order** in the request dialog (↑/↓ set the order) to
-have them sign one after another instead: each is emailed only when the one
-before them has signed, and their link's validity starts then.
-
-Signers who haven't signed are reminded by email 2 hours, 8 hours, 1 day,
-2 days and 4 days after the document reaches them (sent, or their turn came),
-then no more. **Signature Settings → Disable Reminders** turns this off.
-**Send Reminder** on the record or the request sends an extra one now.
-
-Signers draw or upload a signature. The last one used is remembered per email
-(**Saved Signature**), so the next document is one click; signing with a new
-one replaces it.
-
-Open **Sign** (`/app/sign-dashboard`) for what is waiting on you and what you
-have sent.
-
-### Checking it still works
+**Run the tests**
 
 ```bash
 bench --site <site> execute frappe_sign.frappe_sign.test_sign_flow.run
 ```
 
-Creates its own data, asserts the whole flow, then removes it.
+It creates its own data, checks the full signing flow, then removes the data.
 
-#### License
+### License
 
-mit
+MIT

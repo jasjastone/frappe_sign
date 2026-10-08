@@ -1,4 +1,4 @@
-/* ../../../../../../../tmp/tmp-227524-Lwng15VuG7j8/frappe_sign/frappe_sign/public/css/sign.bundle.css */
+/* ../../../../../../../tmp/tmp-62168-d9DFlzc2hO4H/frappe_sign/frappe_sign/public/css/sign.bundle.css */
 .frappe-sign-widget .sign-doc-head {
   display: flex;
   justify-content: space-between;
@@ -193,8 +193,8 @@
 .sign-place-box .sign-place-label {
   position: absolute;
   top: 2px;
-  right: 4px;
-  left: 18px;
+  left: 4px;
+  right: 18px;
   font-size: 11px;
   line-height: 1.2;
   color: #1f272e;
@@ -206,7 +206,7 @@
 .sign-place-box .sign-place-remove {
   position: absolute;
   top: -9px;
-  left: -9px;
+  right: -9px;
   width: 18px;
   height: 18px;
   line-height: 16px;
@@ -220,14 +220,14 @@
 }
 .sign-place-box .sign-place-resize {
   position: absolute;
-  left: -6px;
+  right: -6px;
   bottom: -6px;
   width: 12px;
   height: 12px;
   background: var(--c);
   border: 2px solid #fff;
   border-radius: 2px;
-  cursor: nesw-resize;
+  cursor: nwse-resize;
 }
 .sign-signer-row {
   cursor: pointer;
@@ -237,14 +237,14 @@
   font-weight: 600;
 }
 .sign-signer-row.is-active td:first-child {
-  box-shadow: inset -4px 0 0 var(--c);
+  box-shadow: inset 4px 0 0 var(--c);
 }
 .sign-signer-swatch {
   display: inline-block;
   width: 10px;
   height: 10px;
   border-radius: 2px;
-  margin-left: 6px;
+  margin-right: 6px;
   vertical-align: middle;
 }
 .sign-preview-frame {
@@ -334,7 +334,7 @@
 .sign-dash-card {
   padding: 14px 16px;
   border: 1px solid var(--border-color, #d1d8dd);
-  border-right: 4px solid var(--c);
+  border-left: 4px solid var(--c);
   border-radius: 8px;
   background: var(--card-bg, #fff);
   cursor: pointer;
@@ -391,4 +391,4 @@
   padding: 24px 16px;
   text-align: center;
 }
-/*# sourceMappingURL=sign.bundle.W4LVIA4D.css.map */
+/*# sourceMappingURL=sign.bundle.Z5T4C2TC.css.map */
